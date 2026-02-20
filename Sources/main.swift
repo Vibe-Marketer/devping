@@ -3026,43 +3026,287 @@ struct SettingsView: View {
     }
 }
 
+// MARK: - Hook Installer
+
+enum AITool: String, CaseIterable, Identifiable {
+    case claudeCode = "claudeCode"
+    case openCode   = "openCode"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .claudeCode: return "Claude Code"
+        case .openCode:   return "OpenCode"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .claudeCode: return "c.circle.fill"
+        case .openCode:   return "terminal.fill"
+        }
+    }
+
+    /// True if the tool appears to be installed on this machine
+    var isInstalled: Bool {
+        switch self {
+        case .claudeCode:
+            return FileManager.default.fileExists(atPath: (NSHomeDirectory() as NSString).appendingPathComponent(".claude"))
+                || (try? FileManager.default.contentsOfDirectory(atPath: "/usr/local/bin").contains("claude")) == true
+                || FileManager.default.fileExists(atPath: "/opt/homebrew/bin/claude")
+                || FileManager.default.fileExists(atPath: (NSHomeDirectory() as NSString).appendingPathComponent(".nvm/versions"))
+        case .openCode:
+            return FileManager.default.fileExists(atPath: (NSHomeDirectory() as NSString).appendingPathComponent(".config/opencode"))
+                || FileManager.default.fileExists(atPath: "/opt/homebrew/bin/opencode")
+                || FileManager.default.fileExists(atPath: "/usr/local/bin/opencode")
+        }
+    }
+
+    var settingsPath: String {
+        let home = NSHomeDirectory()
+        switch self {
+        case .claudeCode: return "\(home)/.claude/settings.json"
+        case .openCode:   return "\(home)/.config/opencode/settings.json"
+        }
+    }
+}
+
+final class HookInstaller {
+    static let shared = HookInstaller()
+
+    private let hookDir: String = {
+        let home = NSHomeDirectory()
+        return "\(home)/.config/devping/hooks"
+    }()
+
+    private let hookScriptPath: String = {
+        let home = NSHomeDirectory()
+        return "\(home)/.config/devping/hooks/notify.sh"
+    }()
+
+    /// Install the devping notification hook for one or more tools.
+    /// Returns a result string suitable for display.
+    func install(for tools: [AITool]) -> (success: Bool, message: String) {
+        do {
+            try writeHookScript()
+            var installed: [String] = []
+            var errors: [String] = []
+            for tool in tools {
+                do {
+                    try patchSettings(for: tool)
+                    installed.append(tool.label)
+                } catch {
+                    errors.append("\(tool.label): \(error.localizedDescription)")
+                }
+            }
+            if errors.isEmpty {
+                return (true, "Hooks installed for: \(installed.joined(separator: ", "))")
+            } else {
+                return (false, "Partial install. Errors:\n\(errors.joined(separator: "\n"))")
+            }
+        } catch {
+            return (false, "Failed to write hook script: \(error.localizedDescription)")
+        }
+    }
+
+    /// Check if a tool already has devping hooks installed
+    func isInstalled(for tool: AITool) -> Bool {
+        guard let data = FileManager.default.contents(atPath: tool.settingsPath),
+              let content = String(data: data, encoding: .utf8) else { return false }
+        return content.contains("devping") || content.contains("notify.sh")
+    }
+
+    // ── Private ──
+
+    private func writeHookScript() throws {
+        let fm = FileManager.default
+        try fm.createDirectory(atPath: hookDir, withIntermediateDirectories: true)
+
+        let script = """
+        #!/bin/bash
+        # DevPing notification hook
+        # Auto-installed by DevPing — https://github.com/Vibe-Marketer/devping
+
+        MODE="${1:-}"  # "permission" or empty for completion
+
+        # Read hook input from stdin
+        INPUT=$(cat)
+        HOOK_CWD=$(echo "$INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('cwd',''))" 2>/dev/null)
+        CWD="${HOOK_CWD:-$(pwd)}"
+        PROJECT_NAME=$(basename "$CWD")
+
+        # Detect runtime
+        RUNTIME="Claude"
+        if echo "$0" | grep -qi "opencode"; then
+            RUNTIME="OpenCode"
+        fi
+
+        # Detect TTY
+        TTY_DEVICE=""
+        PARENT_TTY=$(ps -o tty= -p $PPID 2>/dev/null | tr -d ' ')
+        if [ -n "$PARENT_TTY" ] && [ "$PARENT_TTY" != "??" ]; then
+            TTY_DEVICE="/dev/$PARENT_TTY"
+        fi
+
+        # Detect editor
+        EDITOR_NAME=""
+        if [ -d "$HOME/.claude/ide" ]; then
+            for lockfile in "$HOME/.claude/ide"/*.lock; do
+                [ -f "$lockfile" ] || continue
+                IDE_NAME=$(python3 -c "
+        import sys, json
+        try:
+            data = json.load(open('$lockfile'))
+            folders = data.get('workspaceFolders', [])
+            ide = data.get('ideName', '')
+            cwd = '$CWD'
+            for f in folders:
+                if cwd.startswith(f) or f.startswith(cwd):
+                    print(ide)
+                    sys.exit(0)
+        except:
+            pass
+        " 2>/dev/null)
+                if [ -n "$IDE_NAME" ]; then
+                    EDITOR_NAME="$IDE_NAME"
+                    break
+                fi
+            done
+        fi
+        if [ -z "$EDITOR_NAME" ]; then
+            CURRENT_PID=$$
+            for _ in 1 2 3 4 5 6 7 8; do
+                PARENT_PID=$(ps -o ppid= -p "$CURRENT_PID" 2>/dev/null | tr -d ' ')
+                [ -z "$PARENT_PID" ] || [ "$PARENT_PID" = "1" ] || [ "$PARENT_PID" = "0" ] && break
+                PARENT_NAME=$(ps -o comm= -p "$PARENT_PID" 2>/dev/null)
+                case "$PARENT_NAME" in
+                    *[Zz]ed*)           EDITOR_NAME="Zed"; break ;;
+                    *[Cc]ursor*)        EDITOR_NAME="Cursor"; break ;;
+                    *[Cc]ode*|*VSCode*) EDITOR_NAME="VSCode"; break ;;
+                    *[Ww]indsurf*)      EDITOR_NAME="Windsurf"; break ;;
+                    *Terminal*)         EDITOR_NAME="Terminal"; break ;;
+                esac
+                CURRENT_PID="$PARENT_PID"
+            done
+        fi
+        if [ -z "$EDITOR_NAME" ]; then
+            case "${TERM_PROGRAM:-}" in
+                iTerm*|iTerm.app)  EDITOR_NAME="iTerm" ;;
+                Apple_Terminal)    EDITOR_NAME="Terminal" ;;
+                WezTerm)           EDITOR_NAME="WezTerm" ;;
+                Alacritty)         EDITOR_NAME="Alacritty" ;;
+                ghostty)           EDITOR_NAME="Ghostty" ;;
+                vscode)            EDITOR_NAME="VSCode" ;;
+            esac
+        fi
+        if [ -z "$EDITOR_NAME" ]; then
+            EDITOR_NAME="Terminal"
+        fi
+
+        # Find devping binary
+        DEVPING_BIN=""
+        if command -v devping >/dev/null 2>&1; then
+            DEVPING_BIN=$(command -v devping)
+        elif [ -x "/opt/homebrew/bin/devping" ]; then
+            DEVPING_BIN="/opt/homebrew/bin/devping"
+        elif [ -x "$HOME/.local/bin/devping" ]; then
+            DEVPING_BIN="$HOME/.local/bin/devping"
+        fi
+
+        if [ -n "$DEVPING_BIN" ]; then
+            "$DEVPING_BIN" --notify "$RUNTIME" "$PROJECT_NAME" "$CWD" "$EDITOR_NAME" "${TTY_DEVICE:-none}" $MODE &
+        fi
+        """
+
+        try script.write(toFile: hookScriptPath, atomically: true, encoding: .utf8)
+        // Make executable
+        try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: hookScriptPath)
+    }
+
+    private func patchSettings(for tool: AITool) throws {
+        let fm = FileManager.default
+        let path = tool.settingsPath
+
+        // Ensure parent directory exists
+        let dir = (path as NSString).deletingLastPathComponent
+        try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
+
+        // Load existing JSON or start fresh
+        var root: [String: Any] = [:]
+        if fm.fileExists(atPath: path),
+           let data = fm.contents(atPath: path),
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            root = parsed
+        }
+
+        // Build hook entries
+        let stopHook: [String: Any] = [
+            "type": "command",
+            "command": "bash \"\(hookScriptPath)\"",
+            "timeout": 60
+        ]
+        let permissionHook: [String: Any] = [
+            "type": "command",
+            "command": "bash \"\(hookScriptPath)\" permission",
+            "timeout": 60
+        ]
+
+        var hooks = root["hooks"] as? [String: Any] ?? [:]
+
+        // Stop hook
+        var stopArray = hooks["Stop"] as? [[String: Any]] ?? []
+        let alreadyHasStop = stopArray.contains { ($0["command"] as? String)?.contains("devping") == true || ($0["command"] as? String)?.contains("notify.sh") == true }
+        if !alreadyHasStop {
+            stopArray.append(["hooks": [stopHook]])
+        }
+        hooks["Stop"] = stopArray
+
+        // Notification / permission hook
+        var notifArray = hooks["Notification"] as? [[String: Any]] ?? []
+        let alreadyHasNotif = notifArray.contains { entry in
+            if let innerHooks = entry["hooks"] as? [[String: Any]] {
+                return innerHooks.contains { ($0["command"] as? String)?.contains("devping") == true || ($0["command"] as? String)?.contains("notify.sh") == true }
+            }
+            return false
+        }
+        if !alreadyHasNotif {
+            notifArray.append([
+                "matcher": "permission_prompt",
+                "hooks": [permissionHook]
+            ])
+        }
+        hooks["Notification"] = notifArray
+
+        root["hooks"] = hooks
+
+        let output = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
+        try output.write(to: URL(fileURLWithPath: path))
+    }
+}
+
 // MARK: - Onboarding
 
 /// Multi-step welcome window shown once on first launch.
 struct WelcomeView: View {
     @State private var step: Int = 0
     @State private var testFired: Bool = false
+    @State private var setupDone: Bool = false
+    @State private var setupMessage: String = ""
+    @State private var selectedTools: Set<AITool> = {
+        // Pre-select whichever tools are detected as installed
+        Set(AITool.allCases.filter { $0.isInstalled })
+    }()
     var onDismiss: (() -> Void)?
+    var onOpenSettings: (() -> Void)?
 
-    // Step content
-    private let steps: [(icon: String, title: String, body: String)] = [
-        (
-            "bolt.fill",
-            "Welcome to DevPing",
-            "DevPing lives in your menu bar and fires native macOS notifications whenever Claude Code, OpenCode, or any AI assistant finishes a task or needs your attention."
-        ),
-        (
-            "menubar.rectangle",
-            "It's up there ↑",
-            "Look for the ⚡ bolt icon in your menu bar at the top of your screen. Click it anytime to send a test notification, open Settings, or toggle launch-at-login."
-        ),
-        (
-            "hook.sparkles",
-            "Add it to your AI workflow",
-            "Drop this one-liner into your Claude Code or OpenCode hook so DevPing fires automatically when a task completes:\n\ndevping \"$CLAUDE_PROJECT_NAME\""
-        ),
-        (
-            "party.popper",
-            "You're all set",
-            "DevPing is running in the background. Fire a test notification below to make sure everything is working, then close this window."
-        ),
-    ]
+    private let totalSteps = 4
 
     var body: some View {
         VStack(spacing: 0) {
             // Progress dots
             HStack(spacing: 6) {
-                ForEach(0..<steps.count, id: \.self) { i in
+                ForEach(0..<totalSteps, id: \.self) { i in
                     Circle()
                         .fill(i == step ? Color.accentColor : Color.secondary.opacity(0.3))
                         .frame(width: i == step ? 8 : 6, height: i == step ? 8 : 6)
@@ -3073,46 +3317,20 @@ struct WelcomeView: View {
 
             Spacer()
 
-            // Icon
-            Image(systemName: steps[step].icon)
-                .font(.system(size: 52, weight: .medium))
-                .foregroundStyle(Color.accentColor)
-                .padding(.bottom, 16)
-                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: step)
-
-            // Title
-            Text(steps[step].title)
-                .font(.system(size: 22, weight: .bold))
-                .multilineTextAlignment(.center)
-                .padding(.bottom, 10)
-
-            // Body
-            Text(steps[step].body)
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
-                .padding(.horizontal, 32)
-                .fixedSize(horizontal: false, vertical: true)
-
-            // Test notification button (last step only)
-            if step == steps.count - 1 {
-                Button(action: fireTestNotification) {
-                    Label(testFired ? "Notification Sent!" : "Send Test Notification", systemImage: testFired ? "checkmark.circle.fill" : "bolt.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .frame(minWidth: 200)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(testFired ? .green : .accentColor)
-                .controlSize(.large)
-                .padding(.top, 20)
+            // Step content
+            switch step {
+            case 0: stepWelcome
+            case 1: stepMenuBar
+            case 2: stepSetup
+            case 3: stepFinish
+            default: stepWelcome
             }
 
             Spacer()
 
             Divider()
 
-            // Navigation
+            // Navigation bar
             HStack {
                 if step > 0 {
                     Button("Back") { withAnimation { step -= 1 } }
@@ -3120,7 +3338,7 @@ struct WelcomeView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
-                if step < steps.count - 1 {
+                if step < totalSteps - 1 {
                     Button("Continue") { withAnimation { step += 1 } }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.regular)
@@ -3138,7 +3356,179 @@ struct WelcomeView: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
         }
-        .frame(width: 480, height: 400)
+        .frame(width: 500, height: 440)
+    }
+
+    // ── Step 0: Welcome ──
+    private var stepWelcome: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "bolt.fill")
+                .font(.system(size: 52, weight: .medium))
+                .foregroundStyle(Color.accentColor)
+                .padding(.bottom, 4)
+            Text("Welcome to DevPing")
+                .font(.system(size: 22, weight: .bold))
+            Text("DevPing lives in your menu bar and fires native macOS notifications whenever Claude Code, OpenCode, or any AI assistant finishes a task or needs your attention.")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(3)
+                .padding(.horizontal, 40)
+        }
+    }
+
+    // ── Step 1: Menu bar location ──
+    private var stepMenuBar: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "menubar.rectangle")
+                .font(.system(size: 52, weight: .medium))
+                .foregroundStyle(Color.accentColor)
+                .padding(.bottom, 4)
+            Text("It's up there ↑")
+                .font(.system(size: 22, weight: .bold))
+            Text("Look for the ⚡ bolt icon in your menu bar at the top of your screen. Click it anytime to send a test notification, open Settings, or toggle launch-at-login.")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(3)
+                .padding(.horizontal, 40)
+        }
+    }
+
+    // ── Step 2: Interactive hook setup ──
+    private var stepSetup: some View {
+        VStack(spacing: 14) {
+            Image(systemName: setupDone ? "checkmark.circle.fill" : "hook.sparkles")
+                .font(.system(size: 48, weight: .medium))
+                .foregroundStyle(setupDone ? Color.green : Color.accentColor)
+                .padding(.bottom, 2)
+
+            Text("Connect to your AI tools")
+                .font(.system(size: 22, weight: .bold))
+
+            Text("Select the tools you use and DevPing will automatically install the notification hooks for you — no terminal needed.")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(3)
+                .padding(.horizontal, 32)
+
+            // Tool checkboxes
+            VStack(spacing: 8) {
+                ForEach(AITool.allCases) { tool in
+                    toolRow(tool)
+                }
+            }
+            .padding(.horizontal, 40)
+            .padding(.top, 4)
+
+            if setupDone {
+                Label(setupMessage, systemImage: "checkmark.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.green)
+                    .padding(.top, 2)
+            } else {
+                Button(action: runSetup) {
+                    Label("Install Hooks", systemImage: "arrow.down.circle.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(minWidth: 180)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.regular)
+                .disabled(selectedTools.isEmpty)
+                .padding(.top, 2)
+            }
+        }
+    }
+
+    private func toolRow(_ tool: AITool) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: selectedTools.contains(tool) ? "checkmark.square.fill" : "square")
+                .foregroundStyle(selectedTools.contains(tool) ? Color.accentColor : Color.secondary)
+                .font(.system(size: 18))
+                .onTapGesture {
+                    if selectedTools.contains(tool) {
+                        selectedTools.remove(tool)
+                    } else {
+                        selectedTools.insert(tool)
+                    }
+                }
+
+            Image(systemName: tool.icon)
+                .foregroundStyle(Color.secondary)
+                .frame(width: 16)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(tool.label)
+                    .font(.system(size: 13, weight: .medium))
+                if HookInstaller.shared.isInstalled(for: tool) && !setupDone {
+                    Text("Already configured")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                } else if !tool.isInstalled {
+                    Text("Not detected on this machine")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 12)
+        .background(Color.secondary.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    private func runSetup() {
+        let tools = Array(selectedTools)
+        let result = HookInstaller.shared.install(for: tools)
+        withAnimation {
+            setupDone = result.success
+            setupMessage = result.success
+                ? "Hooks installed for \(tools.map(\.label).joined(separator: " & "))"
+                : result.message
+        }
+    }
+
+    // ── Step 3: Finish ──
+    private var stepFinish: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "party.popper")
+                .font(.system(size: 52, weight: .medium))
+                .foregroundStyle(Color.accentColor)
+                .padding(.bottom, 2)
+
+            Text("You're all set!")
+                .font(.system(size: 22, weight: .bold))
+
+            Text("Fire a test notification to confirm everything is working. You can also open Settings to customize the look, sound, and position.")
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(3)
+                .padding(.horizontal, 32)
+
+            HStack(spacing: 12) {
+                Button(action: fireTestNotification) {
+                    Label(testFired ? "Sent!" : "Test Notification",
+                          systemImage: testFired ? "checkmark.circle.fill" : "bolt.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(minWidth: 150)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(testFired ? .green : .accentColor)
+                .controlSize(.large)
+
+                Button(action: { onOpenSettings?() }) {
+                    Label("Open Settings", systemImage: "gearshape")
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(minWidth: 140)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+            }
+            .padding(.top, 4)
+        }
     }
 
     private func fireTestNotification() {
@@ -3246,14 +3636,18 @@ final class MenuBarController: NSObject, NSWindowDelegate {
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
         window.center()
-        window.contentView = NSHostingView(rootView: WelcomeView(onDismiss: { [weak self, weak window] in
-            window?.close()
-            self?.welcomeWindow = nil
-            // After onboarding, pop the "click here" tooltip from the menu bar icon
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                self?.showOnboardingPopover()
+        window.contentView = NSHostingView(rootView: WelcomeView(
+            onDismiss: { [weak self, weak window] in
+                window?.close()
+                self?.welcomeWindow = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    self?.showOnboardingPopover()
+                }
+            },
+            onOpenSettings: { [weak self] in
+                self?.openSettings()
             }
-        }))
+        ))
         window.makeKeyAndOrderFront(nil)
         window.isReleasedWhenClosed = false
         window.delegate = self
