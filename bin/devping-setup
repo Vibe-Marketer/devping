@@ -1,0 +1,220 @@
+#!/bin/bash
+# devping-setup -- Install hooks for Claude Code and/or OpenCode
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Find the hook script: Homebrew share > relative share > repo hooks/
+HOOK_SRC=""
+BREW_SHARE="$(brew --prefix 2>/dev/null)/share/devping/notify-complete.sh"
+RELATIVE_HOOK="$(dirname "$SCRIPT_DIR")/share/devping/notify-complete.sh"
+REPO_HOOK="$(dirname "$SCRIPT_DIR")/hooks/notify-complete.sh"
+
+if [ -f "$BREW_SHARE" ]; then
+    HOOK_SRC="$BREW_SHARE"
+elif [ -f "$RELATIVE_HOOK" ]; then
+    HOOK_SRC="$RELATIVE_HOOK"
+elif [ -f "$REPO_HOOK" ]; then
+    HOOK_SRC="$REPO_HOOK"
+else
+    echo "Error: Could not find notify-complete.sh"
+    echo "Make sure devping is properly installed."
+    exit 1
+fi
+
+echo ""
+echo "  devping setup"
+echo "  ============="
+echo ""
+echo "  Native macOS notifications for Claude Code & OpenCode."
+echo "  Get notified when Claude finishes or needs permission,"
+echo "  with one-click to jump to the right editor window."
+echo ""
+
+# --- Claude Code ---
+setup_claude_code() {
+    local hooks_dir="$HOME/.claude/hooks"
+    local settings="$HOME/.claude/settings.json"
+
+    mkdir -p "$hooks_dir"
+    cp "$HOOK_SRC" "$hooks_dir/notify-complete.sh"
+    chmod +x "$hooks_dir/notify-complete.sh"
+    echo "  [OK] Hook script -> $hooks_dir/"
+
+    if [ -f "$settings" ]; then
+        # Check if Stop hook already exists
+        local has_stop
+        has_stop=$(python3 -c "
+import json, sys
+with open('$settings') as f:
+    s = json.load(f)
+hooks = s.get('hooks', {})
+for stop in hooks.get('Stop', []):
+    for h in stop.get('hooks', []):
+        if 'notify-complete' in h.get('command', ''):
+            sys.exit(0)
+sys.exit(1)
+" 2>/dev/null && echo "yes" || echo "no")
+
+        if [ "$has_stop" = "yes" ]; then
+            echo "  [OK] Stop hook already configured"
+        else
+            python3 -c "
+import json
+with open('$settings') as f:
+    s = json.load(f)
+s.setdefault('hooks', {})
+s['hooks'].setdefault('Stop', []).append({
+    'hooks': [{'type': 'command', 'command': 'bash \"\$HOME/.claude/hooks/notify-complete.sh\"', 'timeout': 60}]
+})
+with open('$settings', 'w') as f:
+    json.dump(s, f, indent=2)
+" 2>/dev/null
+            echo "  [OK] Added Stop hook to settings.json"
+        fi
+
+        # Check if Notification hook already exists
+        local has_notify
+        has_notify=$(python3 -c "
+import json, sys
+with open('$settings') as f:
+    s = json.load(f)
+hooks = s.get('hooks', {})
+for n in hooks.get('Notification', []):
+    for h in n.get('hooks', []):
+        if 'notify-complete' in h.get('command', ''):
+            sys.exit(0)
+sys.exit(1)
+" 2>/dev/null && echo "yes" || echo "no")
+
+        if [ "$has_notify" = "yes" ]; then
+            echo "  [OK] Notification hook already configured"
+        else
+            python3 -c "
+import json
+with open('$settings') as f:
+    s = json.load(f)
+s.setdefault('hooks', {})
+s['hooks'].setdefault('Notification', []).append({
+    'matcher': 'permission_prompt',
+    'hooks': [{'type': 'command', 'command': 'bash \"\$HOME/.claude/hooks/notify-complete.sh\" permission', 'timeout': 60}]
+})
+with open('$settings', 'w') as f:
+    json.dump(s, f, indent=2)
+" 2>/dev/null
+            echo "  [OK] Added Notification hook to settings.json"
+        fi
+    else
+        mkdir -p "$(dirname "$settings")"
+        python3 -c "
+import json
+s = {
+    'hooks': {
+        'Stop': [{'hooks': [{'type': 'command', 'command': 'bash \"\$HOME/.claude/hooks/notify-complete.sh\"', 'timeout': 60}]}],
+        'Notification': [{'matcher': 'permission_prompt', 'hooks': [{'type': 'command', 'command': 'bash \"\$HOME/.claude/hooks/notify-complete.sh\" permission', 'timeout': 60}]}]
+    }
+}
+with open('$settings', 'w') as f:
+    json.dump(s, f, indent=2)
+" 2>/dev/null
+        echo "  [OK] Created $settings with hooks"
+    fi
+}
+
+# --- OpenCode ---
+setup_opencode() {
+    local hooks_dir="$HOME/.config/opencode/hooks"
+    local settings="$HOME/.config/opencode/settings.json"
+
+    mkdir -p "$hooks_dir"
+    cp "$HOOK_SRC" "$hooks_dir/notify-complete.sh"
+    chmod +x "$hooks_dir/notify-complete.sh"
+    echo "  [OK] Hook script -> $hooks_dir/"
+
+    if [ -f "$settings" ]; then
+        local has_stop
+        has_stop=$(python3 -c "
+import json, sys
+with open('$settings') as f:
+    s = json.load(f)
+hooks = s.get('hooks', {})
+for stop in hooks.get('Stop', []):
+    for h in stop.get('hooks', []):
+        if 'notify-complete' in h.get('command', ''):
+            sys.exit(0)
+sys.exit(1)
+" 2>/dev/null && echo "yes" || echo "no")
+
+        if [ "$has_stop" = "yes" ]; then
+            echo "  [OK] Stop hook already configured"
+        else
+            python3 -c "
+import json
+with open('$settings') as f:
+    s = json.load(f)
+s.setdefault('hooks', {})
+s['hooks'].setdefault('Stop', []).append({
+    'hooks': [{'type': 'command', 'command': 'bash \"\$HOME/.config/opencode/hooks/notify-complete.sh\"', 'timeout': 60}]
+})
+with open('$settings', 'w') as f:
+    json.dump(s, f, indent=2)
+" 2>/dev/null
+            echo "  [OK] Added Stop hook to settings.json"
+        fi
+
+        local has_notify
+        has_notify=$(python3 -c "
+import json, sys
+with open('$settings') as f:
+    s = json.load(f)
+hooks = s.get('hooks', {})
+for n in hooks.get('Notification', []):
+    for h in n.get('hooks', []):
+        if 'notify-complete' in h.get('command', ''):
+            sys.exit(0)
+sys.exit(1)
+" 2>/dev/null && echo "yes" || echo "no")
+
+        if [ "$has_notify" = "yes" ]; then
+            echo "  [OK] Notification hook already configured"
+        else
+            python3 -c "
+import json
+with open('$settings') as f:
+    s = json.load(f)
+s.setdefault('hooks', {})
+s['hooks'].setdefault('Notification', []).append({
+    'matcher': 'permission_prompt',
+    'hooks': [{'type': 'command', 'command': 'bash \"\$HOME/.config/opencode/hooks/notify-complete.sh\" permission', 'timeout': 60}]
+})
+with open('$settings', 'w') as f:
+    json.dump(s, f, indent=2)
+" 2>/dev/null
+            echo "  [OK] Added Notification hook to settings.json"
+        fi
+    else
+        echo "  [SKIP] OpenCode settings.json not found"
+    fi
+}
+
+# --- Runtime selection ---
+echo "  Which runtimes do you use?"
+echo ""
+echo "    1) Claude Code only"
+echo "    2) OpenCode only"
+echo "    3) Both (recommended)"
+echo ""
+read -rp "  Choice [1/2/3]: " choice
+echo ""
+
+case "$choice" in
+    1) setup_claude_code ;;
+    2) setup_opencode ;;
+    3) setup_claude_code; echo ""; setup_opencode ;;
+    *) echo "  Invalid choice."; exit 1 ;;
+esac
+
+echo ""
+echo "  Done! Restart your Claude Code / OpenCode sessions"
+echo "  for hooks to take effect."
+echo ""
