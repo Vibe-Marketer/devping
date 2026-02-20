@@ -10,6 +10,7 @@ import ServiceManagement
 let args = CommandLine.arguments
 let isSettingsMode = args.contains("--settings")
 let isExplicitMenuBar = args.contains("--menu-bar")
+let isNotifyMode = args.contains("--notify")   // Explicit notification-only mode (never starts menu bar)
 
 // Auto-detect .app bundle launch: if we're inside a .app bundle AND no notification args given,
 // default to menu bar mode. This means double-clicking DevPing.app enters menu bar mode.
@@ -17,15 +18,31 @@ let isInsideAppBundle: Bool = {
     let execPath = args[0]
     return execPath.contains(".app/Contents/MacOS/")
 }()
-let hasNotificationArgs = args.count > 1 && !args[1].hasPrefix("-")
-let isMenuBarMode = isExplicitMenuBar || (isInsideAppBundle && !hasNotificationArgs && !isSettingsMode)
+let hasNotificationArgs = args.dropFirst().contains(where: { !$0.hasPrefix("-") })
+let isMenuBarMode = !isNotifyMode && (isExplicitMenuBar || (isInsideAppBundle && !hasNotificationArgs && !isSettingsMode))
 
-let runtime = args.count > 1 && !args[1].hasPrefix("-") ? args[1] : "Claude"
-let projectName = args.count > 2 && !args[2].hasPrefix("-") ? args[2] : "Project"
-let projectPath = args.count > 3 && !args[3].hasPrefix("-") ? args[3] : ""
-let editorArg = args.count > 4 && !args[4].hasPrefix("-") ? args[4] : "Terminal"
-let ttyDevice = args.count > 5 && !args[5].hasPrefix("-") ? args[5] : "none"
-let mode = args.count > 6 && !args[6].hasPrefix("-") ? args[6] : ""
+// MARK: - Single Instance Guard
+// Prevent duplicate menu bar icons. If another instance with our bundle ID is already
+// running, ask it to surface (via activation) and exit immediately.
+if isMenuBarMode {
+    let bundleID = Bundle.main.bundleIdentifier ?? "com.devping.app"
+    let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+    let others = running.filter { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }
+    if !others.isEmpty {
+        // Another instance is already running — bring it forward and bail out
+        others.first?.activate(options: [])
+        exit(0)
+    }
+}
+
+// Strip all flag args (starting with "--") to get positional args cleanly
+let positionalArgs = args.dropFirst().filter { !$0.hasPrefix("-") }
+let runtime     = positionalArgs.count > 0 ? positionalArgs[positionalArgs.startIndex] : "Claude"
+let projectName = positionalArgs.count > 1 ? positionalArgs[positionalArgs.index(positionalArgs.startIndex, offsetBy: 1)] : "Project"
+let projectPath = positionalArgs.count > 2 ? positionalArgs[positionalArgs.index(positionalArgs.startIndex, offsetBy: 2)] : ""
+let editorArg   = positionalArgs.count > 3 ? positionalArgs[positionalArgs.index(positionalArgs.startIndex, offsetBy: 3)] : "Terminal"
+let ttyDevice   = positionalArgs.count > 4 ? positionalArgs[positionalArgs.index(positionalArgs.startIndex, offsetBy: 4)] : "none"
+let mode        = positionalArgs.count > 5 ? positionalArgs[positionalArgs.index(positionalArgs.startIndex, offsetBy: 5)] : ""
 
 let isPermission = mode == "permission"
 let hasTTY = ttyDevice != "none" && !ttyDevice.isEmpty
@@ -1088,6 +1105,8 @@ final class Settings {
 
     private func registerDefaults() {
         defaults.register(defaults: [
+            // Onboarding
+            "hasCompletedOnboarding": false,
             // General
             "completionSound": "Glass",
             "permissionSound": "Tink",
@@ -1119,6 +1138,13 @@ final class Settings {
             "dndEndHour": 8,
             "dndEndMinute": 0,
         ])
+    }
+
+    // ── Onboarding ──
+
+    var hasCompletedOnboarding: Bool {
+        get { defaults.bool(forKey: "hasCompletedOnboarding") }
+        set { defaults.set(newValue, forKey: "hasCompletedOnboarding") }
     }
 
     // ── General ──
@@ -3000,11 +3026,184 @@ struct SettingsView: View {
     }
 }
 
+// MARK: - Onboarding
+
+/// Multi-step welcome window shown once on first launch.
+struct WelcomeView: View {
+    @State private var step: Int = 0
+    @State private var testFired: Bool = false
+    var onDismiss: (() -> Void)?
+
+    // Step content
+    private let steps: [(icon: String, title: String, body: String)] = [
+        (
+            "bolt.fill",
+            "Welcome to DevPing",
+            "DevPing lives in your menu bar and fires native macOS notifications whenever Claude Code, OpenCode, or any AI assistant finishes a task or needs your attention."
+        ),
+        (
+            "menubar.rectangle",
+            "It's up there ↑",
+            "Look for the ⚡ bolt icon in your menu bar at the top of your screen. Click it anytime to send a test notification, open Settings, or toggle launch-at-login."
+        ),
+        (
+            "hook.sparkles",
+            "Add it to your AI workflow",
+            "Drop this one-liner into your Claude Code or OpenCode hook so DevPing fires automatically when a task completes:\n\ndevping \"$CLAUDE_PROJECT_NAME\""
+        ),
+        (
+            "party.popper",
+            "You're all set",
+            "DevPing is running in the background. Fire a test notification below to make sure everything is working, then close this window."
+        ),
+    ]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Progress dots
+            HStack(spacing: 6) {
+                ForEach(0..<steps.count, id: \.self) { i in
+                    Circle()
+                        .fill(i == step ? Color.accentColor : Color.secondary.opacity(0.3))
+                        .frame(width: i == step ? 8 : 6, height: i == step ? 8 : 6)
+                        .animation(.spring(response: 0.3), value: step)
+                }
+            }
+            .padding(.top, 24)
+
+            Spacer()
+
+            // Icon
+            Image(systemName: steps[step].icon)
+                .font(.system(size: 52, weight: .medium))
+                .foregroundStyle(Color.accentColor)
+                .padding(.bottom, 16)
+                .animation(.spring(response: 0.4, dampingFraction: 0.7), value: step)
+
+            // Title
+            Text(steps[step].title)
+                .font(.system(size: 22, weight: .bold))
+                .multilineTextAlignment(.center)
+                .padding(.bottom, 10)
+
+            // Body
+            Text(steps[step].body)
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .lineSpacing(3)
+                .padding(.horizontal, 32)
+                .fixedSize(horizontal: false, vertical: true)
+
+            // Test notification button (last step only)
+            if step == steps.count - 1 {
+                Button(action: fireTestNotification) {
+                    Label(testFired ? "Notification Sent!" : "Send Test Notification", systemImage: testFired ? "checkmark.circle.fill" : "bolt.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .frame(minWidth: 200)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(testFired ? .green : .accentColor)
+                .controlSize(.large)
+                .padding(.top, 20)
+            }
+
+            Spacer()
+
+            Divider()
+
+            // Navigation
+            HStack {
+                if step > 0 {
+                    Button("Back") { withAnimation { step -= 1 } }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if step < steps.count - 1 {
+                    Button("Continue") { withAnimation { step += 1 } }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.regular)
+                } else {
+                    Button("Get Started") {
+                        Settings.shared.hasCompletedOnboarding = true
+                        onDismiss?()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.regular)
+                    .disabled(!testFired)
+                    .help(testFired ? "" : "Send a test notification first")
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 16)
+        }
+        .frame(width: 480, height: 400)
+    }
+
+    private func fireTestNotification() {
+        let binaryPath = DevPingPaths.notificationBinary
+        guard FileManager.default.isExecutableFile(atPath: binaryPath) else { return }
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: binaryPath)
+        proc.arguments = ["--notify", "Claude", "DevPing Demo", "/tmp", "Terminal", "/dev/ttys000", ""]
+        try? proc.run()
+        withAnimation { testFired = true }
+    }
+}
+
+/// Arrow popover anchored to the menu bar button — shown once after onboarding is complete,
+/// pointing at the bolt icon with a brief "click here for settings" nudge.
+final class OnboardingPopover: NSObject {
+    private var popover: NSPopover?
+
+    func show(relativeTo button: NSButton) {
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.animates = true
+        popover.contentViewController = NSHostingController(rootView: OnboardingPopoverView {
+            popover.close()
+        })
+        popover.contentSize = NSSize(width: 280, height: 130)
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        self.popover = popover
+    }
+}
+
+struct OnboardingPopoverView: View {
+    var onDismiss: (() -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "bolt.fill")
+                    .foregroundStyle(Color.accentColor)
+                    .font(.system(size: 15, weight: .semibold))
+                Text("DevPing is running!")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            Text("Click this ⚡ icon anytime to:\n• Send a test notification\n• Open Settings\n• Toggle launch at login")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .lineSpacing(2)
+            HStack {
+                Spacer()
+                Button("Got it") { onDismiss?() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+            }
+        }
+        .padding(16)
+    }
+}
+
 // MARK: - Menu Bar Controller
 
 final class MenuBarController: NSObject, NSWindowDelegate {
     private var statusItem: NSStatusItem!
     private var settingsWindow: NSWindow?
+    private var welcomeWindow: NSWindow?
+    private var onboardingPopover: OnboardingPopover?
 
     func setup() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -3020,6 +3219,53 @@ final class MenuBarController: NSObject, NSWindowDelegate {
         }
 
         buildMenu()
+
+        // Show onboarding on first launch
+        if !Settings.shared.hasCompletedOnboarding {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.showWelcome()
+            }
+        }
+    }
+
+    func showWelcome() {
+        if let window = welcomeWindow, window.isVisible {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 400),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "Welcome to DevPing"
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
+        window.center()
+        window.contentView = NSHostingView(rootView: WelcomeView(onDismiss: { [weak self, weak window] in
+            window?.close()
+            self?.welcomeWindow = nil
+            // After onboarding, pop the "click here" tooltip from the menu bar icon
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                self?.showOnboardingPopover()
+            }
+        }))
+        window.makeKeyAndOrderFront(nil)
+        window.isReleasedWhenClosed = false
+        window.delegate = self
+        welcomeWindow = window
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    func showOnboardingPopover() {
+        guard let button = statusItem.button else { return }
+        let popoverController = OnboardingPopover()
+        onboardingPopover = popoverController
+        popoverController.show(relativeTo: button)
     }
 
     private func buildMenu() {
@@ -3099,7 +3345,7 @@ final class MenuBarController: NSObject, NSWindowDelegate {
         }
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: binaryPath)
-        proc.arguments = ["Claude", "Test Project", "/tmp", "Terminal", "/dev/ttys000", ""]
+        proc.arguments = ["--notify", "Claude", "Test Project", "/tmp", "Terminal", "/dev/ttys000", ""]
         try? proc.run()
     }
 
