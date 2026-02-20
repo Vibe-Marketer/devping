@@ -1,12 +1,24 @@
 import AppKit
 import SwiftUI
+import ServiceManagement
 
 // MARK: - Parse Arguments
 // Args: runtime projectName projectPath editor ttyDevice [mode]
 //   mode = "" | "permission" | "--settings"
+//   --menu-bar  → persistent menu bar agent mode
 
 let args = CommandLine.arguments
 let isSettingsMode = args.contains("--settings")
+let isExplicitMenuBar = args.contains("--menu-bar")
+
+// Auto-detect .app bundle launch: if we're inside a .app bundle AND no notification args given,
+// default to menu bar mode. This means double-clicking DevPing.app enters menu bar mode.
+let isInsideAppBundle: Bool = {
+    let execPath = args[0]
+    return execPath.contains(".app/Contents/MacOS/")
+}()
+let hasNotificationArgs = args.count > 1 && !args[1].hasPrefix("-")
+let isMenuBarMode = isExplicitMenuBar || (isInsideAppBundle && !hasNotificationArgs && !isSettingsMode)
 
 let runtime = args.count > 1 && !args[1].hasPrefix("-") ? args[1] : "Claude"
 let projectName = args.count > 2 && !args[2].hasPrefix("-") ? args[2] : "Project"
@@ -1024,6 +1036,40 @@ enum AnimationStyle: String, CaseIterable, Identifiable {
         case .fade: return "Fade"
         case .none: return "None"
         }
+    }
+}
+
+// MARK: - Path Resolution
+
+/// Resolves paths for the devping binary, checking .app bundle first, then Homebrew, then ~/.local/bin
+enum DevPingPaths {
+    /// The path to the notification binary (for spawning test notifications / hooks)
+    static var notificationBinary: String {
+        // 1. Inside .app bundle (Contents/MacOS/devping)
+        if let bundlePath = Bundle.main.executablePath {
+            let bundleDir = (bundlePath as NSString).deletingLastPathComponent
+            let candidate = (bundleDir as NSString).appendingPathComponent("devping")
+            if FileManager.default.isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+            // If we ARE the binary inside the bundle, use our own path
+            if bundlePath.hasSuffix("/devping") {
+                return bundlePath
+            }
+        }
+        // 2. Homebrew
+        let brewPath = "/opt/homebrew/bin/devping"
+        if FileManager.default.isExecutableFile(atPath: brewPath) {
+            return brewPath
+        }
+        // 3. ~/.local/bin
+        let localPath = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".local/bin/devping").path
+        if FileManager.default.isExecutableFile(atPath: localPath) {
+            return localPath
+        }
+        // 4. Current executable as fallback
+        return CommandLine.arguments[0]
     }
 }
 
@@ -2563,8 +2609,7 @@ struct SettingsView: View {
     ]
 
     private func sendTestNotification() {
-        let binaryPath = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".local/bin/devping").path
+        let binaryPath = DevPingPaths.notificationBinary
         guard FileManager.default.isExecutableFile(atPath: binaryPath) else { return }
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: binaryPath)
@@ -2955,13 +3000,179 @@ struct SettingsView: View {
     }
 }
 
+// MARK: - Menu Bar Controller
+
+final class MenuBarController: NSObject, NSWindowDelegate {
+    private var statusItem: NSStatusItem!
+    private var settingsWindow: NSWindow?
+
+    func setup() {
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+
+        if let button = statusItem.button {
+            // Use a bolt icon — matches the "ping" / notification concept
+            let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
+            if let img = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: "DevPing") {
+                let sized = img.withSymbolConfiguration(config) ?? img
+                button.image = sized
+            }
+            button.toolTip = "DevPing — Notification utility for AI coding assistants"
+        }
+
+        buildMenu()
+    }
+
+    private func buildMenu() {
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+
+        // Header
+        let headerItem = NSMenuItem()
+        headerItem.attributedTitle = NSAttributedString(
+            string: "DevPing",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+                .foregroundColor: NSColor.labelColor
+            ]
+        )
+        headerItem.isEnabled = false
+        menu.addItem(headerItem)
+
+        let versionItem = NSMenuItem()
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        versionItem.attributedTitle = NSAttributedString(
+            string: "v\(version)",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 11, weight: .regular),
+                .foregroundColor: NSColor.secondaryLabelColor
+            ]
+        )
+        versionItem.isEnabled = false
+        menu.addItem(versionItem)
+
+        menu.addItem(.separator())
+
+        // Send Test Notification
+        let testItem = NSMenuItem(title: "Send Test Notification", action: #selector(sendTest), keyEquivalent: "t")
+        testItem.keyEquivalentModifierMask = [.command]
+        testItem.target = self
+        menu.addItem(testItem)
+
+        menu.addItem(.separator())
+
+        // Settings
+        let settingsItem = NSMenuItem(title: "Settings...", action: #selector(openSettings), keyEquivalent: ",")
+        settingsItem.keyEquivalentModifierMask = [.command]
+        settingsItem.target = self
+        menu.addItem(settingsItem)
+
+        menu.addItem(.separator())
+
+        // Launch at Login
+        let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin(_:)), keyEquivalent: "")
+        loginItem.target = self
+        if #available(macOS 13.0, *) {
+            loginItem.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
+        }
+        menu.addItem(loginItem)
+
+        menu.addItem(.separator())
+
+        // Quit
+        let quitItem = NSMenuItem(title: "Quit DevPing", action: #selector(quit), keyEquivalent: "q")
+        quitItem.keyEquivalentModifierMask = [.command]
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        statusItem.menu = menu
+    }
+
+    @objc private func sendTest() {
+        let binaryPath = DevPingPaths.notificationBinary
+        guard FileManager.default.isExecutableFile(atPath: binaryPath) else {
+            let alert = NSAlert()
+            alert.messageText = "DevPing binary not found"
+            alert.informativeText = "Could not find the devping binary at: \(binaryPath)\n\nInstall via Homebrew or copy to ~/.local/bin/"
+            alert.alertStyle = .warning
+            alert.runModal()
+            return
+        }
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: binaryPath)
+        proc.arguments = ["Claude", "Test Project", "/tmp", "Terminal", "/dev/ttys000", ""]
+        try? proc.run()
+    }
+
+    @objc private func openSettings() {
+        if let window = settingsWindow, window.isVisible {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 500),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "DevPing Settings"
+        window.titleVisibility = .visible
+        window.titlebarAppearsTransparent = false
+        window.center()
+        window.contentView = NSHostingView(rootView: SettingsView())
+        window.makeKeyAndOrderFront(nil)
+        window.isReleasedWhenClosed = false
+        window.delegate = self
+        settingsWindow = window
+
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func toggleLaunchAtLogin(_ sender: NSMenuItem) {
+        if #available(macOS 13.0, *) {
+            do {
+                if SMAppService.mainApp.status == .enabled {
+                    try SMAppService.mainApp.unregister()
+                    sender.state = .off
+                } else {
+                    try SMAppService.mainApp.register()
+                    sender.state = .on
+                }
+            } catch {
+                let alert = NSAlert()
+                alert.messageText = "Could not update login item"
+                alert.informativeText = error.localizedDescription
+                alert.alertStyle = .warning
+                alert.runModal()
+            }
+        }
+    }
+
+    @objc private func quit() {
+        NSApp.terminate(nil)
+    }
+
+    // NSWindowDelegate — settings window closed
+    func windowWillClose(_ notification: Notification) {
+        settingsWindow = nil
+    }
+}
+
 // MARK: - App Entry Point
 
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 
-if isSettingsMode {
-    // ── Settings Mode ──
+if isMenuBarMode {
+    // ── Menu Bar Agent Mode ──
+    // Persistent process: shows status bar icon, provides access to settings + test notification
+    let menuBarController = MenuBarController()
+    menuBarController.setup()
+    app.run()
+
+} else if isSettingsMode {
+    // ── Settings Mode (standalone) ──
     app.setActivationPolicy(.regular)
 
     let settingsWindow = NSWindow(
