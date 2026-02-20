@@ -3528,6 +3528,21 @@ struct WelcomeView: View {
                 .controlSize(.large)
             }
             .padding(.top, 4)
+
+            // Star on GitHub
+            Button(action: {
+                NSWorkspace.shared.open(URL(string: "https://github.com/Vibe-Marketer/devping")!)
+            }) {
+                HStack(spacing: 5) {
+                    Image(systemName: "star.fill")
+                        .foregroundStyle(Color(red: 1.0, green: 0.75, blue: 0.0))
+                    Text("Enjoying DevPing? Star us on GitHub")
+                        .foregroundStyle(.secondary)
+                }
+                .font(.system(size: 12))
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 2)
         }
     }
 
@@ -3718,6 +3733,13 @@ final class MenuBarController: NSObject, NSWindowDelegate {
 
         menu.addItem(.separator())
 
+        // Star on GitHub
+        let starItem = NSMenuItem(title: "⭐ Star on GitHub", action: #selector(openGitHub), keyEquivalent: "")
+        starItem.target = self
+        menu.addItem(starItem)
+
+        menu.addItem(.separator())
+
         // Quit
         let quitItem = NSMenuItem(title: "Quit DevPing", action: #selector(quit), keyEquivalent: "q")
         quitItem.keyEquivalentModifierMask = [.command]
@@ -3787,6 +3809,10 @@ final class MenuBarController: NSObject, NSWindowDelegate {
                 alert.runModal()
             }
         }
+    }
+
+    @objc private func openGitHub() {
+        NSWorkspace.shared.open(URL(string: "https://github.com/Vibe-Marketer/devping")!)
     }
 
     @objc private func quit() {
