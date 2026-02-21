@@ -2580,6 +2580,9 @@ struct SoundListPicker: NSViewRepresentable {
 // MARK: - Settings View
 
 struct SettingsView: View {
+    @State private var selectedTab: String
+    init(initialTab: String = "general") { _selectedTab = State(initialValue: initialTab) }
+
     // General
     @State private var popupEnabled: Bool = Settings.shared.popupEnabled
     @State private var focusedPopup: Bool = Settings.shared.focusedPopup
@@ -2644,28 +2647,28 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             generalTab
-                .tabItem {
-                    Label("General", systemImage: "bell.badge")
-                }
+                .tabItem { Label("General", systemImage: "bell.badge") }
+                .tag("general")
 
             appearanceTab
-                .tabItem {
-                    Label("Appearance", systemImage: "paintbrush")
-                }
+                .tabItem { Label("Appearance", systemImage: "paintbrush") }
+                .tag("appearance")
 
             soundsTab
-                .tabItem {
-                    Label("Sounds", systemImage: "speaker.wave.2")
-                }
+                .tabItem { Label("Sounds", systemImage: "speaker.wave.2") }
+                .tag("sounds")
 
             timingTab
-                .tabItem {
-                    Label("Timing", systemImage: "clock")
-                }
+                .tabItem { Label("Timing", systemImage: "clock") }
+                .tag("timing")
+
+            aboutTab
+                .tabItem { Label("About", systemImage: "person.circle") }
+                .tag("about")
         }
-        .frame(width: 520, height: 480)
+        .frame(width: 540, height: 500)
         .preferredColorScheme(
             appearanceMode == .light ? .light :
             appearanceMode == .dark ? .dark :
@@ -3028,6 +3031,112 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    // MARK: - About Tab
+
+    private var aboutTab: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+
+                // App identity
+                VStack(spacing: 10) {
+                    if let appIcon = NSImage(named: NSImage.applicationIconName) {
+                        Image(nsImage: appIcon)
+                            .resizable()
+                            .frame(width: 80, height: 80)
+                    }
+                    Text("DevPing")
+                        .font(.system(size: 22, weight: .bold))
+                    let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+                    let build   = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"
+                    Text("Version \(version) (Build \(build))")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Text("Copyright © 2025 Andrew Naegele. All rights reserved.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.top, 20)
+
+                Divider()
+
+                // Social links grid
+                VStack(spacing: 8) {
+                    Text("Connect")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    let columns = [GridItem(.adaptive(minimum: 100), spacing: 12)]
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        AboutSocialButton(label: "X / Twitter",   systemImage: "at",                 url: "https://x.com/andrewnaegele")
+                        AboutSocialButton(label: "Instagram",     systemImage: "camera",             url: "https://instagram.com/andrew.naegele")
+                        AboutSocialButton(label: "Facebook",      systemImage: "person.2",           url: "https://facebook.com/andrewnaegele")
+                        AboutSocialButton(label: "LinkedIn",      systemImage: "briefcase",          url: "https://linkedin.com/in/andrewnaegele")
+                        AboutSocialButton(label: "AI Simple",     systemImage: "wand.and.stars",     url: "https://aisimple.co")
+                        AboutSocialButton(label: "GitHub",        systemImage: "chevron.left.forwardslash.chevron.right", url: "https://github.com/Vibe-Marketer/devping")
+                        AboutSocialButton(label: "Skool",         systemImage: "person.3",           url: "https://skool.com/vibe-marketing")
+                        AboutSocialButton(label: "YouTube",       systemImage: "play.rectangle",     url: nil, comingSoon: true)
+                        AboutSocialButton(label: "TikTok",        systemImage: "music.note",         url: nil, comingSoon: true)
+                    }
+                }
+                .padding(.horizontal, 20)
+
+                Divider()
+
+                // Share button
+                Button {
+                    let picker = NSSharingServicePicker(items: [
+                        "Check out DevPing — frosted-glass notifications for AI coding assistants! 🔔",
+                        URL(string: "https://github.com/Vibe-Marketer/devping")!
+                    ])
+                    if let button = NSApp.keyWindow?.contentView?.subviews.first {
+                        picker.show(relativeTo: .zero, of: button, preferredEdge: .minY)
+                    }
+                } label: {
+                    Label("Share DevPing", systemImage: "square.and.arrow.up")
+                }
+                .buttonStyle(.bordered)
+
+                Spacer(minLength: 20)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// Helper view for social link buttons in About tab
+private struct AboutSocialButton: View {
+    let label: String
+    let systemImage: String
+    let url: String?
+    var comingSoon: Bool = false
+
+    var body: some View {
+        Button {
+            guard let urlString = url, let u = URL(string: urlString) else { return }
+            NSWorkspace.shared.open(u)
+        } label: {
+            VStack(spacing: 5) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 20))
+                    .foregroundStyle(comingSoon ? .tertiary : .primary)
+                Text(label)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(comingSoon ? .tertiary : .primary)
+                if comingSoon {
+                    Text("Soon")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 10)
+        }
+        .buttonStyle(.bordered)
+        .disabled(comingSoon)
     }
 }
 
@@ -4003,6 +4112,11 @@ final class MenuBarController: NSObject, NSWindowDelegate {
         communityItem.target = self
         menu.addItem(communityItem)
 
+        // Connect (opens About tab in Settings)
+        let connectItem = NSMenuItem(title: "🔗 Connect", action: #selector(openConnect), keyEquivalent: "")
+        connectItem.target = self
+        menu.addItem(connectItem)
+
         menu.addItem(.separator())
 
         // Quit
@@ -4082,6 +4196,31 @@ final class MenuBarController: NSObject, NSWindowDelegate {
 
     @objc private func openCommunity() {
         NSWorkspace.shared.open(URL(string: "https://skool.com/vibe-marketing")!)
+    }
+
+    @objc private func openConnect() {
+        // Open Settings window focused on the About tab
+        if let window = settingsWindow, window.isVisible {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+        let window = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 540, height: 500),
+            styleMask: [.titled, .closable, .miniaturizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.title = "DevPing Settings"
+        window.titleVisibility = .visible
+        window.titlebarAppearsTransparent = false
+        window.center()
+        window.contentView = NSHostingView(rootView: SettingsView(initialTab: "about"))
+        window.makeKeyAndOrderFront(nil)
+        window.isReleasedWhenClosed = false
+        window.delegate = self
+        settingsWindow = window
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc private func quit() {

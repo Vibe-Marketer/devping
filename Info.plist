@@ -9,9 +9,9 @@
     <key>CFBundleDisplayName</key>
     <string>DevPing</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>5</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>1.2.5</string>
     <key>CFBundleExecutable</key>
     <string>devping</string>
     <key>CFBundlePackageType</key>
@@ -19,7 +19,7 @@
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSHumanReadableCopyright</key>
-    <string>Copyright 2025 DevPing. All rights reserved.</string>
+    <string>Copyright © 2025 Andrew Naegele. All rights reserved.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>NSHighResolutionCapable</key>
