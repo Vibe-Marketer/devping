@@ -2647,28 +2647,32 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        TabView(selection: $selectedTab) {
-            generalTab
-                .tabItem { Label("General", systemImage: "bell.badge") }
-                .tag("general")
+        VStack(spacing: 0) {
+            TabView(selection: $selectedTab) {
+                generalTab
+                    .tabItem { Label("General", systemImage: "bell.badge") }
+                    .tag("general")
 
-            appearanceTab
-                .tabItem { Label("Appearance", systemImage: "paintbrush") }
-                .tag("appearance")
+                appearanceTab
+                    .tabItem { Label("Appearance", systemImage: "paintbrush") }
+                    .tag("appearance")
 
-            soundsTab
-                .tabItem { Label("Sounds", systemImage: "speaker.wave.2") }
-                .tag("sounds")
+                soundsTab
+                    .tabItem { Label("Sounds", systemImage: "speaker.wave.2") }
+                    .tag("sounds")
 
-            timingTab
-                .tabItem { Label("Timing", systemImage: "clock") }
-                .tag("timing")
+                timingTab
+                    .tabItem { Label("Timing", systemImage: "clock") }
+                    .tag("timing")
 
-            aboutTab
-                .tabItem { Label("About", systemImage: "person.circle") }
-                .tag("about")
+                aboutTab
+                    .tabItem { Label("About", systemImage: "person.circle") }
+                    .tag("about")
+            }
+
+            DevPingFooter()
         }
-        .frame(width: 540, height: 500)
+        .frame(width: 680, height: 540)
         .preferredColorScheme(
             appearanceMode == .light ? .light :
             appearanceMode == .dark ? .dark :
@@ -3104,6 +3108,16 @@ struct SettingsView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// Shared footer shown at the bottom of every Settings tab and every Onboarding step
+private struct DevPingFooter: View {
+    var body: some View {
+        Text("DevPing™  ·  © 2026 Andrew Naegele  ·  All Rights Reserved")
+            .font(.system(size: 10))
+            .foregroundStyle(.tertiary)
+            .padding(.bottom, 8)
     }
 }
 
@@ -3623,7 +3637,9 @@ struct WelcomeView: View {
                 }
             }
             .padding(.horizontal, 24)
-            .padding(.vertical, 16)
+            .padding(.vertical, 14)
+
+            DevPingFooter()
         }
         .frame(width: 540, height: 580)
     }
@@ -4152,7 +4168,7 @@ final class MenuBarController: NSObject, NSWindowDelegate {
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 520, height: 500),
+            contentRect: NSRect(x: 0, y: 0, width: 680, height: 540),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -4206,7 +4222,7 @@ final class MenuBarController: NSObject, NSWindowDelegate {
             return
         }
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 540, height: 500),
+            contentRect: NSRect(x: 0, y: 0, width: 680, height: 540),
             styleMask: [.titled, .closable, .miniaturizable],
             backing: .buffered,
             defer: false
@@ -4250,7 +4266,7 @@ if isMenuBarMode {
     app.setActivationPolicy(.regular)
 
     let settingsWindow = NSWindow(
-        contentRect: NSRect(x: 0, y: 0, width: 520, height: 500),
+        contentRect: NSRect(x: 0, y: 0, width: 680, height: 540),
         styleMask: [.titled, .closable, .miniaturizable],
         backing: .buffered,
         defer: false
