@@ -2639,7 +2639,7 @@ struct SettingsView: View {
         guard FileManager.default.isExecutableFile(atPath: binaryPath) else { return }
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: binaryPath)
-        proc.arguments = ["Claude", "Test Project", "/tmp", "Terminal", "/dev/ttys000", ""]
+        proc.arguments = ["--notify", "Claude", "Test Project", "/tmp", "Terminal", "/dev/ttys000", ""]
         try? proc.run()
     }
 
@@ -2679,6 +2679,7 @@ struct SettingsView: View {
         Form {
             Section {
                 Toggle("Show popup notifications", isOn: $popupEnabled)
+                    .toggleStyle(.switch)
                     .tint(.accentColor)
                     .onChange(of: popupEnabled) { _, val in
                         Settings.shared.popupEnabled = val
@@ -2689,12 +2690,14 @@ struct SettingsView: View {
 
             Section {
                 Toggle("Show popup when editor is focused", isOn: $focusedPopup)
+                    .toggleStyle(.switch)
                     .tint(.accentColor)
                     .onChange(of: focusedPopup) { _, val in
                         Settings.shared.focusedPopup = val
                     }
 
                 Toggle("Play sound when editor is focused", isOn: $focusedSound)
+                    .toggleStyle(.switch)
                     .tint(.accentColor)
                     .onChange(of: focusedSound) { _, val in
                         Settings.shared.focusedSound = val
@@ -2744,6 +2747,7 @@ struct SettingsView: View {
 
             Section {
                 Toggle("Enable quiet hours", isOn: $dndEnabled)
+                    .toggleStyle(.switch)
                     .tint(.accentColor)
                     .onChange(of: dndEnabled) { _, val in
                         Settings.shared.dndEnabled = val
@@ -2886,6 +2890,7 @@ struct SettingsView: View {
         Form {
             Section {
                 Toggle("Play sounds", isOn: $soundEnabled)
+                    .toggleStyle(.switch)
                     .tint(.accentColor)
                     .onChange(of: soundEnabled) { _, val in
                         Settings.shared.soundEnabled = val
@@ -3511,7 +3516,7 @@ struct WelcomeView: View {
             .padding(.horizontal, 24)
             .padding(.vertical, 16)
         }
-        .frame(width: 500, height: 440)
+        .frame(width: 540, height: 580)
     }
 
     // ── Step 0: Welcome ──
@@ -3552,8 +3557,7 @@ struct WelcomeView: View {
 
     // ── Step 2: Interactive hook setup ──
     private var stepSetup: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 14) {
+        VStack(spacing: 12) {
                 Image(systemName: setupDone ? "checkmark.circle.fill" : "hook.sparkles")
                     .font(.system(size: 44, weight: .medium))
                     .foregroundStyle(setupDone ? Color.green : Color.accentColor)
@@ -3644,8 +3648,6 @@ struct WelcomeView: View {
                 }
                 .padding(.horizontal, 32)
                 .padding(.top, 4)
-            }
-            .padding(.vertical, 12)
         }
     }
 
@@ -3711,29 +3713,30 @@ struct WelcomeView: View {
     }
 
     // ── Step 3: Finish ──
+    @State private var starPulse: Bool = false
+
     private var stepFinish: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             Image(systemName: "party.popper")
-                .font(.system(size: 52, weight: .medium))
+                .font(.system(size: 48, weight: .medium))
                 .foregroundStyle(Color.accentColor)
-                .padding(.bottom, 2)
 
             Text("You're all set!")
                 .font(.system(size: 22, weight: .bold))
 
-            Text("Fire a test notification to confirm everything is working. You can also open Settings to customize the look, sound, and position.")
+            Text("Fire a test notification to confirm everything is working. Open Settings to customize the look, sound, and position.")
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .lineSpacing(3)
-                .padding(.horizontal, 32)
+                .padding(.horizontal, 36)
 
             HStack(spacing: 12) {
                 Button(action: fireTestNotification) {
                     Label(testFired ? "Sent!" : "Test Notification",
                           systemImage: testFired ? "checkmark.circle.fill" : "bolt.fill")
                         .font(.system(size: 13, weight: .semibold))
-                        .frame(minWidth: 150)
+                        .frame(minWidth: 148)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(testFired ? .green : .accentColor)
@@ -3742,27 +3745,64 @@ struct WelcomeView: View {
                 Button(action: { onOpenSettings?() }) {
                     Label("Open Settings", systemImage: "gearshape")
                         .font(.system(size: 13, weight: .semibold))
-                        .frame(minWidth: 140)
+                        .frame(minWidth: 138)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
             }
-            .padding(.top, 4)
 
-            // Star on GitHub
+            Divider()
+                .padding(.horizontal, 40)
+
+            // ── Star on GitHub ──
+            VStack(spacing: 6) {
+                Button(action: {
+                    NSWorkspace.shared.open(URL(string: "https://github.com/Vibe-Marketer/devping")!)
+                }) {
+                    HStack(spacing: 7) {
+                        Image(systemName: "star.fill")
+                            .foregroundStyle(Color(red: 1.0, green: 0.78, blue: 0.0))
+                        Text("Star us on GitHub")
+                            .fontWeight(.semibold)
+                    }
+                    .font(.system(size: 14))
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 9)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color(red: 1.0, green: 0.78, blue: 0.0).opacity(0.12))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .strokeBorder(Color(red: 1.0, green: 0.78, blue: 0.0).opacity(0.35), lineWidth: 1)
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
+                .scaleEffect(starPulse ? 1.04 : 1.0)
+                .animation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: starPulse)
+                .onAppear { starPulse = true }
+
+                Text("Stars help more developers discover DevPing — it only takes one second and makes a huge difference. Thank you! 🙏")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(2)
+                    .padding(.horizontal, 48)
+            }
+
+            // ── Community ──
             Button(action: {
-                NSWorkspace.shared.open(URL(string: "https://github.com/Vibe-Marketer/devping")!)
+                NSWorkspace.shared.open(URL(string: "https://skool.com/vibe-marketing")!)
             }) {
                 HStack(spacing: 5) {
-                    Image(systemName: "star.fill")
-                        .foregroundStyle(Color(red: 1.0, green: 0.75, blue: 0.0))
-                    Text("Enjoying DevPing? Star us on GitHub")
-                        .foregroundStyle(.secondary)
+                    Image(systemName: "person.3.fill")
+                        .foregroundStyle(Color.accentColor)
+                    Text("Join the Vibe Marketing Community")
+                        .foregroundStyle(Color.accentColor)
                 }
-                .font(.system(size: 12))
+                .font(.system(size: 12, weight: .medium))
             }
             .buttonStyle(.plain)
-            .padding(.top, 2)
         }
     }
 
@@ -3861,7 +3901,7 @@ final class MenuBarController: NSObject, NSWindowDelegate {
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 400),
+            contentRect: NSRect(x: 0, y: 0, width: 540, height: 580),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -3958,6 +3998,11 @@ final class MenuBarController: NSObject, NSWindowDelegate {
         starItem.target = self
         menu.addItem(starItem)
 
+        // Community
+        let communityItem = NSMenuItem(title: "👥 Join the Community", action: #selector(openCommunity), keyEquivalent: "")
+        communityItem.target = self
+        menu.addItem(communityItem)
+
         menu.addItem(.separator())
 
         // Quit
@@ -4033,6 +4078,10 @@ final class MenuBarController: NSObject, NSWindowDelegate {
 
     @objc private func openGitHub() {
         NSWorkspace.shared.open(URL(string: "https://github.com/Vibe-Marketer/devping")!)
+    }
+
+    @objc private func openCommunity() {
+        NSWorkspace.shared.open(URL(string: "https://skool.com/vibe-marketing")!)
     }
 
     @objc private func quit() {
