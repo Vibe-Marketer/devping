@@ -3059,6 +3059,38 @@ enum AITool: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Bundle identifier for real app icon lookup via NSWorkspace
+    var bundleIdentifier: String? {
+        switch self {
+        case .claudeCode: return "com.anthropic.claudefordesktop"
+        case .openCode:   return "ai.opencode.desktop"
+        case .aider:      return nil
+        }
+    }
+
+    /// Resolved app icon — real icon if available, nil to fall back to SF Symbol
+    var appIcon: NSImage? {
+        guard let bundleID = bundleIdentifier else { return nil }
+        // Try bundle ID first
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
+            return NSWorkspace.shared.icon(forFile: url.path)
+        }
+        // Fallback: search /Applications by known app name
+        let appNames: [String]
+        switch self {
+        case .claudeCode: appNames = ["Claude"]
+        case .openCode:   appNames = ["OpenCode"]
+        default:          appNames = []
+        }
+        for name in appNames {
+            let path = "/Applications/\(name).app"
+            if FileManager.default.fileExists(atPath: path) {
+                return NSWorkspace.shared.icon(forFile: path)
+            }
+        }
+        return nil
+    }
+
     /// True if the tool appears to be installed on this machine
     var isInstalled: Bool {
         let fm = FileManager.default
@@ -3630,9 +3662,17 @@ struct WelcomeView: View {
                     }
                 }
 
-            Image(systemName: tool.icon)
-                .foregroundStyle(Color.secondary)
-                .frame(width: 16)
+            if let nsImage = tool.appIcon {
+                Image(nsImage: nsImage)
+                    .resizable()
+                    .interpolation(.high)
+                    .frame(width: 24, height: 24)
+                    .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            } else {
+                Image(systemName: tool.icon)
+                    .foregroundStyle(Color.secondary)
+                    .frame(width: 24, height: 24)
+            }
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(tool.label)
