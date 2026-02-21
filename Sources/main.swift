@@ -3031,6 +3031,7 @@ struct SettingsView: View {
 enum AITool: String, CaseIterable, Identifiable {
     case claudeCode = "claudeCode"
     case openCode   = "openCode"
+    case aider      = "aider"
 
     var id: String { rawValue }
 
@@ -3038,6 +3039,15 @@ enum AITool: String, CaseIterable, Identifiable {
         switch self {
         case .claudeCode: return "Claude Code"
         case .openCode:   return "OpenCode"
+        case .aider:      return "Aider"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .claudeCode: return "Anthropic's official CLI"
+        case .openCode:   return "Open source AI coding agent"
+        case .aider:      return "AI pair programming in your terminal"
         }
     }
 
@@ -3045,21 +3055,28 @@ enum AITool: String, CaseIterable, Identifiable {
         switch self {
         case .claudeCode: return "c.circle.fill"
         case .openCode:   return "terminal.fill"
+        case .aider:      return "chevron.left.forwardslash.chevron.right"
         }
     }
 
     /// True if the tool appears to be installed on this machine
     var isInstalled: Bool {
+        let fm = FileManager.default
+        let home = NSHomeDirectory()
         switch self {
         case .claudeCode:
-            return FileManager.default.fileExists(atPath: (NSHomeDirectory() as NSString).appendingPathComponent(".claude"))
-                || (try? FileManager.default.contentsOfDirectory(atPath: "/usr/local/bin").contains("claude")) == true
-                || FileManager.default.fileExists(atPath: "/opt/homebrew/bin/claude")
-                || FileManager.default.fileExists(atPath: (NSHomeDirectory() as NSString).appendingPathComponent(".nvm/versions"))
+            return fm.fileExists(atPath: (home as NSString).appendingPathComponent(".claude"))
+                || fm.fileExists(atPath: "/opt/homebrew/bin/claude")
+                || fm.fileExists(atPath: "/usr/local/bin/claude")
         case .openCode:
-            return FileManager.default.fileExists(atPath: (NSHomeDirectory() as NSString).appendingPathComponent(".config/opencode"))
-                || FileManager.default.fileExists(atPath: "/opt/homebrew/bin/opencode")
-                || FileManager.default.fileExists(atPath: "/usr/local/bin/opencode")
+            return fm.fileExists(atPath: (home as NSString).appendingPathComponent(".config/opencode"))
+                || fm.fileExists(atPath: "/opt/homebrew/bin/opencode")
+                || fm.fileExists(atPath: "/usr/local/bin/opencode")
+        case .aider:
+            return fm.fileExists(atPath: "/opt/homebrew/bin/aider")
+                || fm.fileExists(atPath: "/usr/local/bin/aider")
+                || fm.fileExists(atPath: (home as NSString).appendingPathComponent(".local/bin/aider"))
+                || fm.fileExists(atPath: (home as NSString).appendingPathComponent(".aider.conf.yml"))
         }
     }
 
@@ -3068,9 +3085,33 @@ enum AITool: String, CaseIterable, Identifiable {
         switch self {
         case .claudeCode: return "\(home)/.claude/settings.json"
         case .openCode:   return "\(home)/.config/opencode/settings.json"
+        case .aider:      return "\(home)/.aider.conf.yml"
         }
     }
 }
+
+/// Editors that are auto-detected at notification time — no config needed.
+/// Used to show the "already supported" info section in onboarding.
+struct DetectedEditor: Identifiable {
+    let id: String
+    let label: String
+    let icon: String
+    var isInstalled: Bool {
+        return NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) != nil
+    }
+}
+
+let autoDetectedEditors: [DetectedEditor] = [
+    DetectedEditor(id: "com.todesktop.230313mzl4w4u92", label: "Cursor",            icon: "cursorarrow"),
+    DetectedEditor(id: "com.microsoft.VSCode",           label: "VS Code",           icon: "chevron.left.forwardslash.chevron.right"),
+    DetectedEditor(id: "dev.zed.Zed",                    label: "Zed",               icon: "bolt"),
+    DetectedEditor(id: "com.codeium.windsurf",           label: "Windsurf",          icon: "wind"),
+    DetectedEditor(id: "com.mitchellh.ghostty",          label: "Ghostty",           icon: "terminal"),
+    DetectedEditor(id: "com.googlecode.iterm2",          label: "iTerm2",            icon: "terminal"),
+    DetectedEditor(id: "com.apple.Terminal",             label: "Terminal",          icon: "terminal"),
+    DetectedEditor(id: "dev.warp.Warp-Stable",           label: "Warp",              icon: "terminal"),
+    DetectedEditor(id: "com.sublimetext.4",              label: "Sublime Text",      icon: "text.cursor"),
+]
 
 final class HookInstaller {
     static let shared = HookInstaller()
@@ -3225,14 +3266,22 @@ final class HookInstaller {
     }
 
     private func patchSettings(for tool: AITool) throws {
+        switch tool {
+        case .aider:
+            try patchAider()
+        default:
+            try patchJSON(for: tool)
+        }
+    }
+
+    /// Patch Claude Code / OpenCode JSON settings
+    private func patchJSON(for tool: AITool) throws {
         let fm = FileManager.default
         let path = tool.settingsPath
 
-        // Ensure parent directory exists
         let dir = (path as NSString).deletingLastPathComponent
         try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
 
-        // Load existing JSON or start fresh
         var root: [String: Any] = [:]
         if fm.fileExists(atPath: path),
            let data = fm.contents(atPath: path),
@@ -3240,7 +3289,6 @@ final class HookInstaller {
             root = parsed
         }
 
-        // Build hook entries
         let stopHook: [String: Any] = [
             "type": "command",
             "command": "bash \"\(hookScriptPath)\"",
@@ -3254,19 +3302,23 @@ final class HookInstaller {
 
         var hooks = root["hooks"] as? [String: Any] ?? [:]
 
-        // Stop hook
         var stopArray = hooks["Stop"] as? [[String: Any]] ?? []
-        let alreadyHasStop = stopArray.contains { ($0["command"] as? String)?.contains("devping") == true || ($0["command"] as? String)?.contains("notify.sh") == true }
+        let alreadyHasStop = stopArray.contains {
+            ($0["command"] as? String)?.contains("devping") == true ||
+            ($0["command"] as? String)?.contains("notify.sh") == true
+        }
         if !alreadyHasStop {
             stopArray.append(["hooks": [stopHook]])
         }
         hooks["Stop"] = stopArray
 
-        // Notification / permission hook
         var notifArray = hooks["Notification"] as? [[String: Any]] ?? []
         let alreadyHasNotif = notifArray.contains { entry in
             if let innerHooks = entry["hooks"] as? [[String: Any]] {
-                return innerHooks.contains { ($0["command"] as? String)?.contains("devping") == true || ($0["command"] as? String)?.contains("notify.sh") == true }
+                return innerHooks.contains {
+                    ($0["command"] as? String)?.contains("devping") == true ||
+                    ($0["command"] as? String)?.contains("notify.sh") == true
+                }
             }
             return false
         }
@@ -3277,11 +3329,82 @@ final class HookInstaller {
             ])
         }
         hooks["Notification"] = notifArray
-
         root["hooks"] = hooks
 
         let output = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
-        try output.write(to: URL(fileURLWithPath: path))
+        try output.write(to: URL(fileURLWithPath: tool.settingsPath))
+    }
+
+    /// Patch Aider's YAML config (~/.aider.conf.yml)
+    private func patchAider() throws {
+        let fm = FileManager.default
+        let path = AITool.aider.settingsPath
+
+        // Read existing YAML as plain text (avoid full YAML parser dependency)
+        var lines: [String] = []
+        if fm.fileExists(atPath: path),
+           let content = try? String(contentsOfFile: path, encoding: .utf8) {
+            lines = content.components(separatedBy: "\n")
+        }
+
+        // Check if already configured
+        let alreadyDone = lines.contains { $0.contains("notify.sh") || $0.contains("devping") }
+        if alreadyDone { return }
+
+        // Remove any existing notifications lines to avoid duplicates
+        lines = lines.filter { !$0.hasPrefix("notifications:") && !$0.hasPrefix("notifications-command:") }
+
+        // Append DevPing config
+        if !lines.isEmpty && lines.last != "" { lines.append("") }
+        lines.append("# DevPing notifications (auto-installed)")
+        lines.append("notifications: true")
+        lines.append("notifications-command: bash \"\(hookScriptPath)\"")
+        lines.append("")
+
+        let output = lines.joined(separator: "\n")
+        try output.write(toFile: path, atomically: true, encoding: .utf8)
+    }
+}
+
+// MARK: - FlowLayout
+
+/// Simple wrapping layout for badge pills (used in onboarding editor section)
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > maxWidth && x > 0 {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return CGSize(width: maxWidth, height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x + size.width > bounds.maxX && x > bounds.minX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: .unspecified)
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
     }
 }
 
@@ -3397,47 +3520,100 @@ struct WelcomeView: View {
 
     // ── Step 2: Interactive hook setup ──
     private var stepSetup: some View {
-        VStack(spacing: 14) {
-            Image(systemName: setupDone ? "checkmark.circle.fill" : "hook.sparkles")
-                .font(.system(size: 48, weight: .medium))
-                .foregroundStyle(setupDone ? Color.green : Color.accentColor)
-                .padding(.bottom, 2)
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 14) {
+                Image(systemName: setupDone ? "checkmark.circle.fill" : "hook.sparkles")
+                    .font(.system(size: 44, weight: .medium))
+                    .foregroundStyle(setupDone ? Color.green : Color.accentColor)
 
-            Text("Connect to your AI tools")
-                .font(.system(size: 22, weight: .bold))
+                Text("Connect to your AI tools")
+                    .font(.system(size: 20, weight: .bold))
 
-            Text("Select the tools you use and DevPing will automatically install the notification hooks for you — no terminal needed.")
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .lineSpacing(3)
+                Text("Select the AI agents you use and DevPing will install the hooks automatically — no terminal needed.")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .lineSpacing(3)
+                    .padding(.horizontal, 32)
+
+                // ── AI Agents (need hook install) ──
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("AI AGENTS")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 4)
+
+                    ForEach(AITool.allCases) { tool in
+                        toolRow(tool)
+                    }
+                }
                 .padding(.horizontal, 32)
 
-            // Tool checkboxes
-            VStack(spacing: 8) {
-                ForEach(AITool.allCases) { tool in
-                    toolRow(tool)
+                if setupDone {
+                    Label(setupMessage, systemImage: "checkmark.circle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.green)
+                } else {
+                    Button(action: runSetup) {
+                        Label("Install Hooks", systemImage: "arrow.down.circle.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .frame(minWidth: 180)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.regular)
+                    .disabled(selectedTools.isEmpty)
                 }
-            }
-            .padding(.horizontal, 40)
-            .padding(.top, 4)
 
-            if setupDone {
-                Label(setupMessage, systemImage: "checkmark.circle.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.green)
-                    .padding(.top, 2)
-            } else {
-                Button(action: runSetup) {
-                    Label("Install Hooks", systemImage: "arrow.down.circle.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .frame(minWidth: 180)
+                // ── Editors (auto-detected, no install needed) ──
+                let installedEditors = autoDetectedEditors.filter { $0.isInstalled }
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 4) {
+                        Text("EDITORS — AUTO-DETECTED")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                        Image(systemName: "checkmark.shield.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.green)
+                    }
+                    .padding(.horizontal, 4)
+
+                    if installedEditors.isEmpty {
+                        Text("No supported editors detected. DevPing works with Cursor, VS Code, Zed, Windsurf, and more — the right logo and name will appear automatically in your notifications.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineSpacing(2)
+                            .padding(.horizontal, 4)
+                    } else {
+                        // Show detected editors as pill badges
+                        FlowLayout(spacing: 6) {
+                            ForEach(installedEditors) { editor in
+                                HStack(spacing: 4) {
+                                    Image(systemName: editor.icon)
+                                        .font(.system(size: 10))
+                                    Text(editor.label)
+                                        .font(.system(size: 11, weight: .medium))
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.green.opacity(0.12))
+                                .foregroundStyle(Color.green)
+                                .clipShape(Capsule())
+                            }
+                        }
+                        .padding(.horizontal, 4)
+
+                        Text("These are already supported — DevPing auto-detects which editor fired the notification and shows the correct name and icon. Nothing to configure.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .lineSpacing(2)
+                            .padding(.horizontal, 4)
+                            .padding(.top, 2)
+                    }
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.regular)
-                .disabled(selectedTools.isEmpty)
-                .padding(.top, 2)
+                .padding(.horizontal, 32)
+                .padding(.top, 4)
             }
+            .padding(.vertical, 12)
         }
     }
 
@@ -3465,8 +3641,12 @@ struct WelcomeView: View {
                     Text("Already configured")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
-                } else if !tool.isInstalled {
-                    Text("Not detected on this machine")
+                } else if setupDone && selectedTools.contains(tool) {
+                    Text("Installed")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.green)
+                } else {
+                    Text(tool.isInstalled ? tool.subtitle : "Not detected on this machine")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
