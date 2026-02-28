@@ -3463,9 +3463,14 @@ final class HookInstaller {
         var hooks = root["hooks"] as? [String: Any] ?? [:]
 
         var stopArray = hooks["Stop"] as? [[String: Any]] ?? []
-        let alreadyHasStop = stopArray.contains {
-            ($0["command"] as? String)?.contains("devping") == true ||
-            ($0["command"] as? String)?.contains("notify.sh") == true
+        let alreadyHasStop = stopArray.contains { entry in
+            if let innerHooks = entry["hooks"] as? [[String: Any]] {
+                return innerHooks.contains {
+                    ($0["command"] as? String)?.contains("devping") == true ||
+                    ($0["command"] as? String)?.contains("notify.sh") == true
+                }
+            }
+            return false
         }
         if !alreadyHasStop {
             stopArray.append(["hooks": [stopHook]])
