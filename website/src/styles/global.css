@@ -1,0 +1,46 @@
+@import "tailwindcss";
+@import "@fontsource/geist-sans";
+@import "@fontsource/geist-mono";
+
+:root {
+  color-scheme: dark;
+}
+
+html {
+  font-family: 'Geist Sans', ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background:
+    radial-gradient(circle at top, rgba(24, 24, 27, 0.9), rgba(9, 9, 11, 1) 42%),
+    linear-gradient(180deg, rgba(9, 9, 11, 1), rgba(9, 9, 11, 1));
+}
+
+a {
+  text-decoration: none;
+}
+
+.shell {
+  @apply mx-auto max-w-7xl px-6 lg:px-10;
+}
+
+.glass {
+  @apply border border-white/10 bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)];
+  backdrop-filter: blur(18px);
+}
+
+.muted-copy {
+  @apply text-sm leading-7 text-zinc-400 md:text-base;
+}
+
+.section-title {
+  @apply text-3xl tracking-tighter text-zinc-100 md:text-5xl md:leading-none;
+}
+
+.cta-primary {
+  @apply inline-flex items-center justify-center rounded-full bg-emerald-400 px-6 py-3 text-sm font-semibold text-zinc-950 transition duration-300 hover:bg-emerald-300 active:scale-[0.98];
+}
+
+.cta-secondary {
+  @apply inline-flex items-center justify-center rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-zinc-100 transition duration-300 hover:bg-white/10 active:scale-[0.98];
+}

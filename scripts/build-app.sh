@@ -3,6 +3,8 @@ set -euo pipefail
 
 # Build DevPing.app bundle
 # Usage: ./scripts/build-app.sh [--release]
+# Optional env:
+#   SIGN_IDENTITY="Developer ID Application: ..."  -> production signing
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -51,9 +53,13 @@ if [[ -f "$PROJECT_DIR/Resources/DevPing.icns" ]]; then
     fi
 fi
 
-# Sign (ad-hoc for local use)
-echo "==> Signing (ad-hoc)..."
-codesign --force --sign - "$APP_DIR" 2>&1 || echo "    Warning: codesign failed (non-fatal for local dev)"
+if [[ -n "${SIGN_IDENTITY:-}" ]]; then
+    echo "==> Signing with Developer ID..."
+    codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$APP_DIR"
+else
+    echo "==> Signing (ad-hoc)..."
+    codesign --force --sign - "$APP_DIR" 2>&1 || echo "    Warning: codesign failed (non-fatal for local dev)"
+fi
 
 echo ""
 echo "==> DevPing.app built successfully!"

@@ -1,0 +1,21 @@
+---
+import SEOHead from '../components/SEOHead.astro';
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description: string;
+}
+
+const { title, description } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" class="bg-zinc-950 text-zinc-100">
+  <head>
+    <SEOHead title={title} description={description} />
+  </head>
+  <body class="min-h-[100dvh] bg-zinc-950 text-zinc-100 antialiased">
+    <slot />
+  </body>
+</html>

@@ -19,7 +19,9 @@
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSHumanReadableCopyright</key>
-    <string>Copyright © 2025 Andrew Naegele. All rights reserved.</string>
+    <string>Copyright © 2026 Andrew Naegele. All rights reserved.</string>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>DevPing uses app automation to bring the correct editor or terminal window to the front when you click a notification.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>NSHighResolutionCapable</key>

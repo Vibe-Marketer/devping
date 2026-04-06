@@ -1,0 +1,27 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Uninstall | DevPing" description="How to remove DevPing and its local integrations.">
+  <main class="shell py-20">
+    <div class="max-w-3xl space-y-8">
+      <h1 class="text-4xl tracking-tighter text-zinc-100 md:text-6xl md:leading-none">Uninstall</h1>
+      <section class="glass rounded-[1.75rem] p-8">
+        <h2 class="text-2xl tracking-tight text-zinc-100">Remove the app</h2>
+        <p class="mt-4 muted-copy">If installed via Homebrew, uninstall the package and untap the formula source. If installed manually, remove the app bundle or binary you installed.</p>
+      </section>
+      <section class="glass rounded-[1.75rem] p-8">
+        <h2 class="text-2xl tracking-tight text-zinc-100">Remove the DevPing hook</h2>
+        <p class="mt-4 muted-copy">Delete <code class="rounded bg-white/10 px-2 py-1 text-zinc-100">~/.config/devping/hooks/notify.sh</code> and remove DevPing entries from supported tool config files.</p>
+      </section>
+      <section class="glass rounded-[1.75rem] p-8">
+        <h2 class="text-2xl tracking-tight text-zinc-100">Supported tool configs</h2>
+        <ul class="mt-4 space-y-2 text-sm leading-7 text-zinc-400">
+          <li><code class="rounded bg-white/10 px-2 py-1 text-zinc-100">~/.claude/settings.json</code></li>
+          <li><code class="rounded bg-white/10 px-2 py-1 text-zinc-100">~/.config/opencode/settings.json</code></li>
+          <li><code class="rounded bg-white/10 px-2 py-1 text-zinc-100">~/.aider.conf.yml</code></li>
+        </ul>
+      </section>
+    </div>
+  </main>
+</BaseLayout>

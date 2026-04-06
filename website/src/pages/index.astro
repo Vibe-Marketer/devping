@@ -1,0 +1,258 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const title = 'Native macOS notifications for AI coding tools | DevPing';
+const description = 'DevPing tells you when Claude Code, OpenCode, and Aider finish or need approval, then gets you back to the right editor or terminal fast.';
+---
+
+<BaseLayout title={title} description={description}>
+  <header class="shell flex items-center justify-between py-6">
+    <a href="/" class="flex items-center gap-3 text-sm font-semibold tracking-tight text-zinc-100">
+      <span class="glass flex h-10 w-10 items-center justify-center rounded-2xl text-lg text-emerald-300">DP</span>
+      <span>DevPing</span>
+    </a>
+    <nav class="hidden items-center gap-6 text-sm text-zinc-400 md:flex">
+      <a href="#features" class="hover:text-zinc-100">Features</a>
+      <a href="#trust" class="hover:text-zinc-100">Trust</a>
+      <a href="/privacy" class="hover:text-zinc-100">Privacy</a>
+      <a href="/support" class="hover:text-zinc-100">Support</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="shell grid min-h-[82dvh] items-center gap-16 py-16 lg:grid-cols-[1.05fr_0.95fr] lg:py-24">
+      <div class="space-y-8">
+        <div class="inline-flex items-center rounded-full border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-xs font-medium uppercase tracking-[0.18em] text-emerald-300">
+          Direct download launch ready
+        </div>
+        <div class="space-y-6">
+          <h1 class="max-w-4xl text-5xl tracking-tighter text-zinc-100 md:text-7xl md:leading-none">
+            Native macOS notifications for AI coding tools.
+          </h1>
+          <p class="max-w-2xl text-lg leading-8 text-zinc-400 md:text-xl">
+            DevPing lets you know when Claude Code, OpenCode, and Aider finish, need approval, or need your attention — then gets you back to the right editor or terminal without babysitting the session.
+          </p>
+        </div>
+        <div class="flex flex-col gap-4 sm:flex-row">
+          <a class="cta-primary" href="https://github.com/Vibe-Marketer/devping/releases">Download DevPing</a>
+          <a class="cta-secondary" href="https://github.com/Vibe-Marketer/devping">View on GitHub</a>
+        </div>
+        <div class="grid max-w-2xl gap-4 text-sm text-zinc-400 sm:grid-cols-3">
+          <div class="glass rounded-3xl p-5">
+            <div class="text-zinc-100">Focus-aware</div>
+            <p class="mt-2 leading-6">Chimes softly if you’re already in the editor. Shows a popup when you’re away.</p>
+          </div>
+          <div class="glass rounded-3xl p-5">
+            <div class="text-zinc-100">One-click return</div>
+            <p class="mt-2 leading-6">Jump back to the right editor or terminal window instead of hunting for it.</p>
+          </div>
+          <div class="glass rounded-3xl p-5">
+            <div class="text-zinc-100">No account required</div>
+            <p class="mt-2 leading-6">The core product works locally on your Mac and is useful immediately.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass relative overflow-hidden rounded-[2rem] p-6 lg:p-8">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(52,211,153,0.14),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.06),transparent_25%)]"></div>
+        <div class="relative space-y-6">
+          <div class="rounded-[1.75rem] border border-white/10 bg-zinc-900/80 p-5">
+            <div class="flex items-center justify-between text-xs uppercase tracking-[0.16em] text-zinc-500">
+              <span>Notification preview</span>
+              <span>Terminal • Claude Code</span>
+            </div>
+            <div class="mt-6 space-y-4">
+              <div>
+                <div class="text-sm text-zinc-500">Status</div>
+                <div class="mt-1 text-2xl tracking-tight text-zinc-100">Ready for your input</div>
+              </div>
+              <p class="text-sm leading-7 text-zinc-400">
+                DevPing can play a sound, show a floating panel, and bring the matching editor or terminal session back to the front.
+              </p>
+              <div class="flex gap-3">
+                <div class="rounded-full bg-emerald-400 px-4 py-2 text-xs font-semibold text-zinc-950">Open project</div>
+                <div class="rounded-full border border-white/10 px-4 py-2 text-xs font-semibold text-zinc-200">Dismiss</div>
+              </div>
+            </div>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="rounded-[1.5rem] border border-white/10 bg-white/4 p-5">
+              <div class="text-sm font-medium text-zinc-100">Supported AI tools</div>
+              <ul class="mt-3 space-y-2 text-sm text-zinc-400">
+                <li>Claude Code</li>
+                <li>OpenCode</li>
+                <li>Aider</li>
+              </ul>
+            </div>
+            <div class="rounded-[1.5rem] border border-white/10 bg-white/4 p-5">
+              <div class="text-sm font-medium text-zinc-100">Supported editors</div>
+              <ul class="mt-3 space-y-2 text-sm text-zinc-400">
+                <li>Cursor, VS Code, Zed</li>
+                <li>Warp, iTerm2, Terminal</li>
+                <li>Ghostty, WezTerm, Alacritty</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="shell py-20">
+      <div class="grid gap-12 lg:grid-cols-[0.8fr_1.2fr]">
+        <div class="space-y-5">
+          <p class="text-sm uppercase tracking-[0.18em] text-zinc-500">Why DevPing</p>
+          <h2 class="section-title">Stop babysitting coding sessions.</h2>
+          <p class="muted-copy max-w-xl">
+            DevPing adds a lightweight native notification layer around the tools you already use. It’s built for long-running prompts, approval interruptions, and context switching during real coding work.
+          </p>
+        </div>
+        <div class="grid gap-5 md:grid-cols-2">
+          <article class="glass rounded-[1.75rem] p-6">
+            <h3 class="text-xl tracking-tight text-zinc-100">Completion alerts</h3>
+            <p class="mt-3 muted-copy">Know when a session has stopped responding and it’s time to come back.</p>
+          </article>
+          <article class="glass rounded-[1.75rem] p-6">
+            <h3 class="text-xl tracking-tight text-zinc-100">Permission alerts</h3>
+            <p class="mt-3 muted-copy">Hear and see when your tool needs approval instead of letting it sit idle.</p>
+          </article>
+          <article class="glass rounded-[1.75rem] p-6">
+            <h3 class="text-xl tracking-tight text-zinc-100">Settings that stay out of the way</h3>
+            <p class="mt-3 muted-copy">Configure sound, timing, position, appearance, and launch-at-login from a native settings window.</p>
+          </article>
+          <article class="glass rounded-[1.75rem] p-6">
+            <h3 class="text-xl tracking-tight text-zinc-100">Built for direct launch</h3>
+            <p class="mt-3 muted-copy">No mandatory account. No bloated workflow. Install it, connect your tools, and keep moving.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="shell py-20">
+      <div class="grid gap-12 lg:grid-cols-[0.9fr_1.1fr]">
+        <div class="space-y-5">
+          <p class="text-sm uppercase tracking-[0.18em] text-zinc-500">How it works</p>
+          <h2 class="section-title">A thin layer over the tools you already use.</h2>
+          <p class="muted-copy max-w-xl">
+            DevPing does not try to replace your editor, terminal, or coding assistant. It only adds the notification and return-to-context layer that those workflows usually miss.
+          </p>
+        </div>
+        <div class="grid gap-4 md:grid-cols-3">
+          <article class="glass rounded-[1.5rem] p-6">
+            <div class="text-sm font-medium text-zinc-100">1. Connect your tool</div>
+            <p class="mt-3 text-sm leading-7 text-zinc-400">Install the local hook for Claude Code, OpenCode, or Aider from the app onboarding flow.</p>
+          </article>
+          <article class="glass rounded-[1.5rem] p-6">
+            <div class="text-sm font-medium text-zinc-100">2. Let DevPing listen</div>
+            <p class="mt-3 text-sm leading-7 text-zinc-400">When a run finishes or needs approval, DevPing plays a sound or shows a popup based on your settings.</p>
+          </article>
+          <article class="glass rounded-[1.5rem] p-6">
+            <div class="text-sm font-medium text-zinc-100">3. Jump back fast</div>
+            <p class="mt-3 text-sm leading-7 text-zinc-400">Use the notification action to return to the matching editor or terminal session without hunting for the right window.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="trust" class="shell py-20">
+      <div class="glass grid gap-10 rounded-[2rem] p-8 lg:grid-cols-2 lg:p-10">
+        <div class="space-y-5">
+          <p class="text-sm uppercase tracking-[0.18em] text-zinc-500">Trust</p>
+          <h2 class="section-title">Useful immediately. Transparent by design.</h2>
+        </div>
+        <div class="grid gap-6 text-sm text-zinc-400 sm:grid-cols-2">
+          <div>
+            <div class="text-zinc-100">What DevPing does</div>
+            <ul class="mt-3 space-y-2 leading-7">
+              <li>Connects supported AI tool hooks locally</li>
+              <li>Stores your settings on your Mac</li>
+              <li>Helps you return to the right editor or terminal</li>
+            </ul>
+          </div>
+          <div>
+            <div class="text-zinc-100">What DevPing does not need</div>
+            <ul class="mt-3 space-y-2 leading-7">
+              <li>No required account</li>
+              <li>No cloud copy of your prompts or code to function</li>
+              <li>No replacement for your editor workflow</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="shell py-20">
+      <div class="grid gap-12 lg:grid-cols-[0.85fr_1.15fr]">
+        <div class="space-y-5">
+          <p class="text-sm uppercase tracking-[0.18em] text-zinc-500">Install</p>
+          <h2 class="section-title">Two-minute setup.</h2>
+          <p class="muted-copy max-w-xl">
+            The direct download build is signed and notarized. Once the app is installed, connect your supported AI tool and send a test notification from the menu bar.
+          </p>
+        </div>
+        <div class="grid gap-4 md:grid-cols-2">
+          <div class="glass rounded-[1.5rem] p-6">
+            <div class="text-sm font-medium text-zinc-100">Homebrew</div>
+            <pre class="mt-4 overflow-x-auto rounded-2xl bg-black/30 p-4 text-sm leading-7 text-zinc-300"><code>brew tap vibe-marketer/devping
+brew install devping
+devping-setup</code></pre>
+          </div>
+          <div class="glass rounded-[1.5rem] p-6">
+            <div class="text-sm font-medium text-zinc-100">Manual</div>
+            <pre class="mt-4 overflow-x-auto rounded-2xl bg-black/30 p-4 text-sm leading-7 text-zinc-300"><code>Download the zip
+Move DevPing.app to Applications
+Launch DevPing
+Connect your tool</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="shell py-20">
+      <div class="grid gap-12 lg:grid-cols-[0.9fr_1.1fr]">
+        <div class="space-y-5">
+          <p class="text-sm uppercase tracking-[0.18em] text-zinc-500">FAQ</p>
+          <h2 class="section-title">A few things people will ask before installing.</h2>
+        </div>
+        <div class="space-y-4">
+          <article class="glass rounded-[1.5rem] p-6">
+            <h3 class="text-lg tracking-tight text-zinc-100">Does DevPing require an account?</h3>
+            <p class="mt-3 text-sm leading-7 text-zinc-400">No. The core direct-download build works locally on your Mac and does not require a login to get started.</p>
+          </article>
+          <article class="glass rounded-[1.5rem] p-6">
+            <h3 class="text-lg tracking-tight text-zinc-100">What does it modify?</h3>
+            <p class="mt-3 text-sm leading-7 text-zinc-400">DevPing installs a managed local hook and updates supported tool configs so those tools can call DevPing when they finish or need approval.</p>
+          </article>
+          <article class="glass rounded-[1.5rem] p-6">
+            <h3 class="text-lg tracking-tight text-zinc-100">Is the download safe to install?</h3>
+            <p class="mt-3 text-sm leading-7 text-zinc-400">Yes. The current direct-download build is signed with Developer ID and notarized so Gatekeeper accepts it.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="shell py-20">
+      <div class="grid gap-5 rounded-[2rem] border border-white/10 bg-zinc-900/70 p-8 md:grid-cols-[1fr_auto] md:items-center md:p-10">
+        <div>
+          <h2 class="text-3xl tracking-tighter text-zinc-100 md:text-4xl">Install DevPing and get your attention back.</h2>
+          <p class="mt-4 max-w-2xl text-base leading-8 text-zinc-400">
+            Use the free launch build today. A Pro edition is planned, but the core notifier is meant to be valuable on day one.
+          </p>
+        </div>
+        <div class="flex flex-col gap-3 sm:flex-row md:flex-col">
+          <a class="cta-primary" href="https://github.com/Vibe-Marketer/devping/releases">Download</a>
+          <a class="cta-secondary" href="https://github.com/Vibe-Marketer/devping">GitHub</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="shell flex flex-col gap-4 border-t border-white/10 py-8 text-sm text-zinc-500 md:flex-row md:items-center md:justify-between">
+    <div>DevPing © 2026 Andrew Naegele</div>
+    <div class="flex flex-wrap gap-5">
+      <a href="/privacy" class="hover:text-zinc-100">Privacy</a>
+      <a href="/support" class="hover:text-zinc-100">Support</a>
+      <a href="/uninstall" class="hover:text-zinc-100">Uninstall</a>
+      <a href="https://skool.com/vibe-marketing" class="hover:text-zinc-100">Community</a>
+    </div>
+  </footer>
+</BaseLayout>

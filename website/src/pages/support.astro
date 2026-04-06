@@ -1,0 +1,28 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Support | DevPing" description="Support information for DevPing.">
+  <main class="shell py-20">
+    <div class="max-w-3xl space-y-8">
+      <h1 class="text-4xl tracking-tighter text-zinc-100 md:text-6xl md:leading-none">Support</h1>
+      <p class="muted-copy">If DevPing is not behaving correctly, start with the setup and trust docs in the repository, then verify that the tool hook is installed cleanly.</p>
+      <section class="glass rounded-[1.75rem] p-8">
+        <h2 class="text-2xl tracking-tight text-zinc-100">First checks</h2>
+        <ul class="mt-4 space-y-2 text-sm leading-7 text-zinc-400">
+          <li>Confirm DevPing is running</li>
+          <li>Send a test notification from the menu bar</li>
+          <li>Re-run setup for the supported tool if needed</li>
+          <li>Check permissions if window focusing is failing</li>
+        </ul>
+      </section>
+      <section class="glass rounded-[1.75rem] p-8">
+        <h2 class="text-2xl tracking-tight text-zinc-100">Public support channels</h2>
+        <div class="mt-4 flex flex-wrap gap-3">
+          <a class="cta-secondary" href="https://github.com/Vibe-Marketer/devping">GitHub</a>
+          <a class="cta-secondary" href="https://skool.com/vibe-marketing">Community</a>
+        </div>
+      </section>
+    </div>
+  </main>
+</BaseLayout>

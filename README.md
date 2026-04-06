@@ -1,29 +1,68 @@
 # DevPing
 
-Native macOS notifications for Claude Code and OpenCode. A lightweight SwiftUI panel appears when Claude finishes a response or needs permission -- with one click to jump to the exact editor window.
+Native macOS notifications for AI coding tools.
 
-**Author:** Andrew Naegele
-**Platform:** macOS 14+ (Sonoma and later)
+DevPing is a lightweight menu bar app that plays a sound or shows a polished popup when your coding assistant finishes, needs approval, or needs your attention — then lets you jump back to the right editor or terminal window.
+
+**Platform:** macOS 14+  
+**Status:** Direct-download launch in progress  
+**Current integrations:** Claude Code, OpenCode, Aider
+
+---
+
+## Why DevPing
+
+AI coding sessions are easy to lose track of.
+
+DevPing solves that by giving you:
+
+- native macOS notifications for long-running coding sessions
+- configurable sounds and popup behavior
+- smart focus detection
+- one-click return to the right editor or terminal window
+- menu bar access for settings and test notifications
 
 ---
 
 ## Features
 
-- **Smart focus detection** -- only plays a chime when your editor is focused, shows full popup when you're away
-- **Completion alerts** with configurable chime when Claude stops responding
-- **Permission alerts** with distinct sound when Claude needs approval
-- **Settings UI** -- configure sounds, timeouts, and notification behavior from a native settings window
-- **14 macOS system sounds** to choose from (Glass, Tink, Ping, Pop, and more)
-- **Smart editor detection** -- automatically detects Zed, Cursor, VS Code, Windsurf, Terminal, and more
-- **One-click focus** -- brings the exact window/tab to the front, even with multiple editor instances
-- **Stacking** -- multiple notifications stack vertically, never overlap
-- **Auto-dismiss** with visual countdown bar (configurable: 10s to 5min, or persist until dismissed)
-- **Terminal window targeting** -- uses tty matching to focus the exact Terminal.app or iTerm2 tab
-- Works with both **Claude Code** and **OpenCode**
+- **Smart focus detection** — only chimes when your editor is already focused, shows a popup when you’re away
+- **Completion alerts** — know when a coding session has finished
+- **Permission alerts** — hear and see when approval is needed
+- **Settings UI** — configure sounds, timing, display, and appearance
+- **Multiple macOS system sounds** — including Glass, Tink, Ping, Pop, and more
+- **Smart editor detection** — works across popular code editors and terminals
+- **One-click focus** — jump back to the correct app/window
+- **Stacking notifications** — multiple panels stack cleanly
+- **Auto-dismiss timer** — configurable from short alerts to persistent notifications
+- **Menu bar mode** — lives quietly in the background until needed
 
-### Supported Editors
+---
 
-Zed, Cursor, VS Code, Windsurf, Void, Sublime Text, Fleet, Nova, Warp, iTerm2, WezTerm, Alacritty, Ghostty, Terminal.app
+## Supported tools
+
+### AI tools
+
+- Claude Code
+- OpenCode
+- Aider
+
+### Supported editors / terminals
+
+- Zed
+- Cursor
+- VS Code
+- Windsurf
+- Void
+- Sublime Text
+- Fleet
+- Nova
+- Warp
+- iTerm2
+- WezTerm
+- Alacritty
+- Ghostty
+- Terminal.app
 
 ---
 
@@ -37,117 +76,97 @@ brew install devping
 devping-setup
 ```
 
-### Manual
+### Manual install
 
 ```bash
-# Build from source
 swift build -c release
-
-# Install binary
 mkdir -p ~/.local/bin
 cp .build/release/devping ~/.local/bin/
 chmod +x ~/.local/bin/devping
-
-# Run setup
 ./bin/devping-setup
 ```
 
-The setup script installs hook scripts and patches your Claude Code / OpenCode settings. Run it once -- future updates to the binary don't require re-running setup.
+The setup script installs the DevPing hook and patches supported tool settings.
 
 ---
 
-## How It Works
-
-1. Claude Code / OpenCode fires the **Stop** hook when it finishes a response
-2. The hook script detects the runtime (Claude vs OpenCode) and editor (Zed, Cursor, Terminal, etc.)
-3. It grabs the tty device from the parent process for terminal window targeting
-4. The binary checks if your editor is the frontmost app via `NSWorkspace`
-5. **If editor is focused:** plays a chime sound only (no popup -- you're already looking at it)
-6. **If editor is NOT focused:** renders a floating SwiftUI panel AND plays the chime
-7. Clicking the action button activates the correct editor and focuses the right window
-8. The panel auto-dismisses after the configured timeout with a visual countdown
-
-### Editor Detection
-
-The hook script uses three strategies in order:
-
-1. **IDE lock files** (`~/.claude/ide/*.lock`) -- Claude Code creates these with `ideName` and `workspaceFolders`. Matched by comparing the session's working directory.
-2. **Process tree walk** -- walks up the parent process chain looking for known editor process names (Zed, Cursor, etc.)
-3. **`TERM_PROGRAM` env var** -- identifies the terminal emulator for standalone CLI sessions
-
-### Window Focusing
-
-- **Code editors** (Zed, Cursor, VS Code, etc.): Activated via AppleScript, then the editor's CLI command opens/focuses the project path
-- **Terminal.app**: AppleScript iterates all windows/tabs, matches by tty device, brings the exact tab to front
-- **iTerm2**: Same approach using iTerm2's AppleScript dictionary (windows > tabs > sessions)
-
----
-
-## Files
-
-```
-devping/
-  Package.swift              Swift package manifest
-  Sources/
-    main.swift               SwiftUI notification app
-  bin/
-    devping-setup            Interactive setup script
-  hooks/
-    notify-complete.sh       Hook script (detects editor, launches binary)
-```
-
----
-
-## Configuration
-
-### Settings UI
-
-Open the settings window:
+## Open settings
 
 ```bash
 devping --settings
 ```
 
-From here you can configure:
+---
 
-- **Focus behavior** -- enable/disable focus detection, toggle chime-only mode when editor is focused
-- **Sounds** -- pick from 14 macOS system sounds for completion and permission events (with preview)
-- **Display** -- enable/disable popup notifications, set auto-dismiss timeout (10s to 5min, or never)
-- **Test** -- preview completion and permission sounds with one click
+## How it works
 
-Settings are stored in macOS UserDefaults (`com.devping.app`) and persist across updates.
-
-### Defaults
-
-| Setting | Default |
-|---------|---------|
-| Completion sound | Glass |
-| Permission sound | Tink |
-| Auto-dismiss | 30 seconds |
-| Focus detection | Enabled |
-| Chime-only when focused | Enabled |
-
-### Available Sounds
-
-`Basso`, `Blow`, `Bottle`, `Frog`, `Funk`, `Glass`, `Hero`, `Morse`, `Ping`, `Pop`, `Purr`, `Sosumi`, `Submarine`, `Tink`
+1. Your AI tool fires a hook when it finishes or needs approval.
+2. The DevPing hook detects the runtime and the active editor/terminal context.
+3. DevPing checks whether your editor is already frontmost.
+4. If you’re already in the editor, it can play a softer sound only.
+5. If you’re away, it shows a floating notification panel and plays the configured sound.
+6. Clicking the action button brings the correct app/window back to the front.
 
 ---
 
-## Uninstall
+## Trust, privacy, and support docs
 
-**Homebrew:**
-```bash
-brew uninstall devping
-brew untap vibe-marketer/devping
-rm ~/.claude/hooks/notify-complete.sh
-rm ~/.config/opencode/hooks/notify-complete.sh
+Before public launch, these docs should ship with the product:
+
+- [`docs/PRIVACY.md`](docs/PRIVACY.md)
+- [`docs/SUPPORT.md`](docs/SUPPORT.md)
+- [`docs/PERMISSIONS.md`](docs/PERMISSIONS.md)
+- [`docs/WHAT-DEVPING-CHANGES.md`](docs/WHAT-DEVPING-CHANGES.md)
+- [`docs/UNINSTALL.md`](docs/UNINSTALL.md)
+- [`docs/LAUNCH-CHECKLIST.md`](docs/LAUNCH-CHECKLIST.md)
+- [`docs/FREE-VS-PRO.md`](docs/FREE-VS-PRO.md)
+- [`docs/WEBSITE-COPY.md`](docs/WEBSITE-COPY.md)
+
+---
+
+## Development files
+
+```text
+devping/
+  Package.swift
+  Sources/
+    main.swift
+  Resources/
+    DevPing.icns
+  bin/
+    devping-setup
+  hooks/
+    notify-complete.sh
+  scripts/
+    build-app.sh
+    package-release.sh
 ```
 
-Then remove the `Stop` and `Notification` entries from:
-- `~/.claude/settings.json`
-- `~/.config/opencode/settings.json`
+---
+
+## Current launch direction
+
+DevPing is being prepared first as a:
+
+- free direct download
+- GitHub release
+- Homebrew install
+- lead magnet for developers using AI coding tools
+
+The Mac App Store path is intentionally deferred until a sandbox-safe edition exists.
 
 ---
 
-(c) 2026 Andrew Naegele | All Rights Reserved
-[@andrew_naegele](https://x.com/andrew_naegele)
+## Notes
+
+- DevPing modifies supported tool config files to install hooks.
+- DevPing does **not** require an account to use the core product.
+- DevPing is being prepared for a future free + Pro model, but launch priority is a polished free release first.
+
+---
+
+## License / rights
+
+Copyright © 2026 Andrew Naegele. All rights reserved.
+
+For support, launch assets, and release planning, see the `docs/` folder.

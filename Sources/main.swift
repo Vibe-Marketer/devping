@@ -3075,13 +3075,13 @@ struct SettingsView: View {
 
                     let columns = [GridItem(.adaptive(minimum: 100), spacing: 12)]
                     LazyVGrid(columns: columns, spacing: 12) {
-                        AboutSocialButton(label: "X / Twitter",   systemImage: "at",                 url: "https://x.com/andrewnaegele")
-                        AboutSocialButton(label: "Instagram",     systemImage: "camera",             url: "https://instagram.com/andrew.naegele")
-                        AboutSocialButton(label: "Facebook",      systemImage: "person.2",           url: "https://facebook.com/andrewnaegele")
-                        AboutSocialButton(label: "LinkedIn",      systemImage: "briefcase",          url: "https://linkedin.com/in/andrewnaegele")
-                        AboutSocialButton(label: "AI Simple",     systemImage: "wand.and.stars",     url: "https://aisimple.co")
-                        AboutSocialButton(label: "GitHub",        systemImage: "chevron.left.forwardslash.chevron.right", url: "https://github.com/Vibe-Marketer/devping")
-                        AboutSocialButton(label: "Skool",         systemImage: "person.3",           url: "https://skool.com/vibe-marketing")
+                        AboutSocialButton(label: "X / Twitter",   systemImage: "at",                 url: AppLinks.x)
+                        AboutSocialButton(label: "Instagram",     systemImage: "camera",             url: AppLinks.instagram)
+                        AboutSocialButton(label: "Facebook",      systemImage: "person.2",           url: AppLinks.facebook)
+                        AboutSocialButton(label: "LinkedIn",      systemImage: "briefcase",          url: AppLinks.linkedIn)
+                        AboutSocialButton(label: "AI Simple",     systemImage: "wand.and.stars",     url: AppLinks.website)
+                        AboutSocialButton(label: "GitHub",        systemImage: "chevron.left.forwardslash.chevron.right", url: AppLinks.github)
+                        AboutSocialButton(label: "Community",     systemImage: "person.3",           url: AppLinks.community)
                         AboutSocialButton(label: "YouTube",       systemImage: "play.rectangle",     url: nil, comingSoon: true)
                         AboutSocialButton(label: "TikTok",        systemImage: "music.note",         url: nil, comingSoon: true)
                     }
@@ -3093,8 +3093,8 @@ struct SettingsView: View {
                 // Share button
                 Button {
                     let picker = NSSharingServicePicker(items: [
-                        "Check out DevPing — frosted-glass notifications for AI coding assistants! 🔔",
-                        URL(string: "https://github.com/Vibe-Marketer/devping")!
+                        "Check out DevPing — native macOS notifications for AI coding assistants.",
+                        URL(string: AppLinks.github)!
                     ])
                     if let button = NSApp.keyWindow?.contentView?.subviews.first {
                         picker.show(relativeTo: .zero, of: button, preferredEdge: .minY)
@@ -3109,6 +3109,16 @@ struct SettingsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+}
+
+private enum AppLinks {
+    static let github = "https://github.com/Vibe-Marketer/devping"
+    static let community = "https://skool.com/vibe-marketing"
+    static let website = "https://aisimple.co"
+    static let x = "https://x.com/andrewnaegele"
+    static let instagram = "https://instagram.com/andrew.naegele"
+    static let facebook = "https://facebook.com/andrewnaegele"
+    static let linkedIn = "https://linkedin.com/in/andrewnaegele"
 }
 
 // Shared footer shown at the bottom of every Settings tab and every Onboarding step
@@ -3463,31 +3473,15 @@ final class HookInstaller {
         var hooks = root["hooks"] as? [String: Any] ?? [:]
 
         var stopArray = hooks["Stop"] as? [[String: Any]] ?? []
-        let alreadyHasStop = stopArray.contains { entry in
-            if let innerHooks = entry["hooks"] as? [[String: Any]] {
-                return innerHooks.contains {
-                    ($0["command"] as? String)?.contains("devping") == true ||
-                    ($0["command"] as? String)?.contains("notify.sh") == true
-                }
-            }
-            return false
-        }
-        if !alreadyHasStop {
+        stopArray = dedupedHookEntries(stopArray, matcher: nil, tool: tool)
+        if !containsDevPingHook(stopArray) {
             stopArray.append(["hooks": [stopHook]])
         }
         hooks["Stop"] = stopArray
 
         var notifArray = hooks["Notification"] as? [[String: Any]] ?? []
-        let alreadyHasNotif = notifArray.contains { entry in
-            if let innerHooks = entry["hooks"] as? [[String: Any]] {
-                return innerHooks.contains {
-                    ($0["command"] as? String)?.contains("devping") == true ||
-                    ($0["command"] as? String)?.contains("notify.sh") == true
-                }
-            }
-            return false
-        }
-        if !alreadyHasNotif {
+        notifArray = dedupedHookEntries(notifArray, matcher: "permission_prompt", tool: tool)
+        if !containsDevPingHook(notifArray) {
             notifArray.append([
                 "matcher": "permission_prompt",
                 "hooks": [permissionHook]
@@ -3498,6 +3492,71 @@ final class HookInstaller {
 
         let output = try JSONSerialization.data(withJSONObject: root, options: [.prettyPrinted, .sortedKeys])
         try output.write(to: URL(fileURLWithPath: tool.settingsPath))
+    }
+
+    private func containsDevPingHook(_ entries: [[String: Any]]) -> Bool {
+        entries.contains { entry in
+            guard let innerHooks = entry["hooks"] as? [[String: Any]] else { return false }
+            return innerHooks.contains { isDevPingHookCommand($0["command"] as? String) }
+        }
+    }
+
+    private func dedupedHookEntries(_ entries: [[String: Any]], matcher: String?, tool: AITool) -> [[String: Any]] {
+        var result: [[String: Any]] = []
+        var keptDevPing = false
+
+        for entry in entries {
+            guard let innerHooks = entry["hooks"] as? [[String: Any]] else {
+                result.append(entry)
+                continue
+            }
+
+            let filteredHooks = innerHooks.filter {
+                !isLegacyToolHookCommand($0["command"] as? String, tool: tool)
+            }
+            let devPingHooks = filteredHooks.filter { isDevPingHookCommand($0["command"] as? String) }
+
+            if devPingHooks.isEmpty {
+                if !filteredHooks.isEmpty {
+                    var normalized = entry
+                    normalized["hooks"] = filteredHooks
+                    result.append(normalized)
+                }
+                continue
+            }
+
+            if keptDevPing { continue }
+            keptDevPing = true
+
+            var normalized: [String: Any] = ["hooks": [devPingHooks[0]]]
+            if let matcher {
+                normalized["matcher"] = matcher
+            } else if let existingMatcher = entry["matcher"] {
+                normalized["matcher"] = existingMatcher
+            }
+            result.append(normalized)
+        }
+
+        return result
+    }
+
+    private func isDevPingHookCommand(_ command: String?) -> Bool {
+        guard let command else { return false }
+        return command.contains(hookScriptPath)
+            || command.contains(".config/devping/hooks/notify.sh")
+            || command.contains("notify.sh")
+    }
+
+    private func isLegacyToolHookCommand(_ command: String?, tool: AITool) -> Bool {
+        guard let command else { return false }
+        switch tool {
+        case .claudeCode:
+            return command.contains(".claude/hooks/notify-complete.sh")
+        case .openCode:
+            return command.contains(".config/opencode/hooks/notify-complete.sh")
+        case .aider:
+            return false
+        }
     }
 
     /// Patch Aider's YAML config (~/.aider.conf.yml)
@@ -3843,8 +3902,6 @@ struct WelcomeView: View {
     }
 
     // ── Step 3: Finish ──
-    @State private var starPulse: Bool = false
-
     private var stepFinish: some View {
         VStack(spacing: 14) {
             Image(systemName: "party.popper")
@@ -3884,55 +3941,38 @@ struct WelcomeView: View {
             Divider()
                 .padding(.horizontal, 40)
 
-            // ── Star on GitHub ──
-            VStack(spacing: 6) {
-                Button(action: {
-                    NSWorkspace.shared.open(URL(string: "https://github.com/Vibe-Marketer/devping")!)
-                }) {
-                    HStack(spacing: 7) {
-                        Image(systemName: "star.fill")
-                            .foregroundStyle(Color(red: 1.0, green: 0.78, blue: 0.0))
-                        Text("Star us on GitHub")
-                            .fontWeight(.semibold)
-                    }
-                    .font(.system(size: 14))
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 9)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color(red: 1.0, green: 0.78, blue: 0.0).opacity(0.12))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .strokeBorder(Color(red: 1.0, green: 0.78, blue: 0.0).opacity(0.35), lineWidth: 1)
-                            )
-                    )
-                }
-                .buttonStyle(.plain)
-                .scaleEffect(starPulse ? 1.04 : 1.0)
-                .animation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true), value: starPulse)
-                .onAppear { starPulse = true }
+            VStack(spacing: 10) {
+                Text("Optional")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.tertiary)
 
-                Text("Stars help more developers discover DevPing — it only takes one second and makes a huge difference. Thank you! 🙏")
+                HStack(spacing: 10) {
+                    Button(action: {
+                        NSWorkspace.shared.open(URL(string: AppLinks.github)!)
+                    }) {
+                        Label("GitHub", systemImage: "star")
+                            .font(.system(size: 12, weight: .medium))
+                            .frame(minWidth: 110)
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button(action: {
+                        NSWorkspace.shared.open(URL(string: AppLinks.community)!)
+                    }) {
+                        Label("Join the Community", systemImage: "person.3")
+                            .font(.system(size: 12, weight: .medium))
+                            .frame(minWidth: 150)
+                    }
+                    .buttonStyle(.bordered)
+                }
+
+                Text("If DevPing is helpful, starring the repo or joining the community is appreciated.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .lineSpacing(2)
                     .padding(.horizontal, 48)
             }
-
-            // ── Community ──
-            Button(action: {
-                NSWorkspace.shared.open(URL(string: "https://skool.com/vibe-marketing")!)
-            }) {
-                HStack(spacing: 5) {
-                    Image(systemName: "person.3.fill")
-                        .foregroundStyle(Color.accentColor)
-                    Text("Join the Vibe Marketing Community")
-                        .foregroundStyle(Color.accentColor)
-                }
-                .font(.system(size: 12, weight: .medium))
-            }
-            .buttonStyle(.plain)
         }
     }
 
@@ -4212,11 +4252,11 @@ final class MenuBarController: NSObject, NSWindowDelegate {
     }
 
     @objc private func openGitHub() {
-        NSWorkspace.shared.open(URL(string: "https://github.com/Vibe-Marketer/devping")!)
+        NSWorkspace.shared.open(URL(string: AppLinks.github)!)
     }
 
     @objc private func openCommunity() {
-        NSWorkspace.shared.open(URL(string: "https://skool.com/vibe-marketing")!)
+        NSWorkspace.shared.open(URL(string: AppLinks.community)!)
     }
 
     @objc private func openConnect() {

@@ -1,0 +1,24 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout title="Privacy | DevPing" description="Privacy information for DevPing, the macOS notifier for AI coding tools.">
+  <main class="shell py-20">
+    <div class="max-w-3xl space-y-8">
+      <h1 class="text-4xl tracking-tighter text-zinc-100 md:text-6xl md:leading-none">Privacy</h1>
+      <p class="muted-copy">DevPing is a local macOS utility that helps you notice when supported AI coding tools finish or need your attention.</p>
+      <section class="glass rounded-[1.75rem] p-8">
+        <h2 class="text-2xl tracking-tight text-zinc-100">What DevPing stores locally</h2>
+        <p class="mt-4 muted-copy">DevPing stores local preferences on your Mac using macOS user defaults, including sounds, popup behavior, timing, appearance settings, and onboarding state.</p>
+      </section>
+      <section class="glass rounded-[1.75rem] p-8">
+        <h2 class="text-2xl tracking-tight text-zinc-100">What DevPing changes</h2>
+        <p class="mt-4 muted-copy">When you connect a supported AI tool, DevPing may update local config files so those tools can call DevPing when they finish or need approval.</p>
+      </section>
+      <section class="glass rounded-[1.75rem] p-8">
+        <h2 class="text-2xl tracking-tight text-zinc-100">What DevPing does not require</h2>
+        <p class="mt-4 muted-copy">The core product does not need an account and does not need to upload your prompts or source code to function.</p>
+      </section>
+    </div>
+  </main>
+</BaseLayout>
