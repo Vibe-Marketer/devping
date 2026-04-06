@@ -40,7 +40,7 @@ Suggested production domain:
 ## 5. GitHub release draft prep
 
 Release title:
-- `DevPing v1.2.6 — notarized direct launch build`
+- `DevPing v1.2.7 — notarized direct launch build`
 
 Release notes source:
 - `docs/GITHUB-RELEASE.md`
@@ -53,9 +53,9 @@ Checksums:
 Review before running:
 
 ```bash
-gh release create v1.2.6 \
-  build/DevPing-v1.2.6.zip \
-  --title "DevPing v1.2.6 — notarized direct launch build" \
+gh release create v1.2.7 \
+  build/DevPing-v1.2.7.zip \
+  --title "DevPing v1.2.7 — notarized direct launch build" \
   --notes-file docs/GITHUB-RELEASE.md
 ```
 

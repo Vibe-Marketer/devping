@@ -33,7 +33,7 @@ The Astro site is static and can also be deployed to:
 
 Current release files:
 - `build/DevPing.app`
-- `build/DevPing-v1.2.6.zip`
+- `build/DevPing-v1.2.7.zip`
 
 Release flow:
 

@@ -2,7 +2,7 @@
 
 ## Title
 
-DevPing v1.2.6 — notarized direct launch build
+DevPing v1.2.7 — notarized direct launch build
 
 ## Release summary
 
