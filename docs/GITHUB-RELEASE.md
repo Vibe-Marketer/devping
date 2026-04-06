@@ -25,6 +25,13 @@ This release is prepared for direct download and includes:
 - Updated privacy, support, permissions, uninstall, and launch docs
 - Direct-download release path with notarized app bundle
 
+## Screenshots
+
+Website screenshots for launch are available in the repo under:
+
+- `docs/assets/screenshots/`
+- `website/public/screenshots/`
+
 ## Install
 
 ### Homebrew

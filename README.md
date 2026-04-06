@@ -66,6 +66,20 @@ DevPing solves that by giving you:
 
 ---
 
+## Screenshots
+
+### Website
+
+![DevPing homepage hero](website/public/screenshots/website-home-hero-desktop.png)
+
+![DevPing homepage features](website/public/screenshots/website-home-features-desktop.png)
+
+![DevPing homepage trust section](website/public/screenshots/website-home-trust-desktop.png)
+
+### Mobile
+
+![DevPing mobile homepage](website/public/screenshots/website-home-mobile-full.png)
+
 ## Install
 
 ### Homebrew (recommended)
